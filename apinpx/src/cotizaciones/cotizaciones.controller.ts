@@ -1,3 +1,4 @@
+// cotizaciones.controller.ts
 import {
   Controller,
   Get,
@@ -14,7 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { CotizacionesService } from './cotizaciones.service';
 import type { Request, Response } from 'express';
 
-@Controller()
+@Controller('api') // 👈 AGREGAR PREFIJO
 export class CotizacionesController {
   constructor(private readonly service: CotizacionesService) {}
 
@@ -33,6 +34,18 @@ export class CotizacionesController {
   ) {
     return this.service.crear(codigo, pdf);
   }
+
+  // 🔒 MÉTRICAS DASHBOARD
+  @Get('metricas') // 👈 NUEVA RUTA
+  obtenerMetricas() {
+    return this.service.obtenerMetricasDashboard();
+  }
+}
+
+// 👇 CONTROLADOR SEPARADO PARA RUTAS PÚBLICAS (sin /api)
+@Controller()
+export class PublicController {
+  constructor(private readonly service: CotizacionesService) {}
 
   // 🌍 PÚBLICO → LINK TRACKED
   @Get('c/:slug')
@@ -64,10 +77,4 @@ export class CotizacionesController {
 </html>
     `);
   }
-
-  @Get('dashboard/metrics')
-    obtenerMetricas() {
-  return this.service.obtenerMetricasDashboard();
-}
-
 }

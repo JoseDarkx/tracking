@@ -1,195 +1,266 @@
+// src/pages/Dashboard.tsx
 import { useEffect, useState } from 'react';
-import { api } from '../api/api';
-import './dashboard.css';
+import toast from 'react-hot-toast';
+import {
+  listarCotizaciones,
+  crearCotizacion,
+  obtenerMetricas,
+  construirUrlPublica,
+  type Cotizacion,
+  type MetricasDashboard,
+} from '../services/api';
 
-export default function Dashboard() {
-  const [cotizaciones, setCotizaciones] = useState<any[]>([]);
+const Dashboard = () => {
+  const [metricas, setMetricas] = useState<MetricasDashboard | null>(null);
+  const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form state
   const [codigo, setCodigo] = useState('');
-  const [pdf, setPdf] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    cargarCotizaciones();
+    cargarDatos();
   }, []);
 
-  async function cargarCotizaciones() {
-    const res = await api.get('/cotizaciones');
-    setCotizaciones(res.data);
-  }
-
-  async function crearCotizacion() {
-    if (!codigo || !pdf) {
-      alert('Debes ingresar código y PDF');
-      return;
-    }
-
-    setLoading(true);
-
-    const formData = new FormData();
-    formData.append('codigo', codigo);
-    formData.append('pdf', pdf);
-
+  const cargarDatos = async () => {
     try {
-      await api.post('/cotizaciones', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      setCodigo('');
-      setPdf(null);
-      await cargarCotizaciones();
-    } catch (e) {
-      alert('Error creando cotización');
+      setLoading(true);
+      const [metricasData, cotizacionesData] = await Promise.all([
+        obtenerMetricas(),
+        listarCotizaciones(),
+      ]);
+      setMetricas(metricasData);
+      setCotizaciones(cotizacionesData);
+    } catch (error) {
+      toast.error('Error al cargar datos');
+      console.error(error);
     } finally {
       setLoading(false);
     }
+  };
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!codigo || !pdfFile) {
+    toast.error('Completa todos los campos');
+    return;
   }
 
-  async function eliminarCotizacion(id: number) {
-    if (!confirm('¿Estás seguro de eliminar esta cotización?')) return;
+  try {
+    setUploading(true);
+    const result = await crearCotizacion(codigo, pdfFile);
+    
+    toast.success('¡Cotización creada exitosamente!');
+    
+    // El backend devuelve { ok, cotizacion, publicUrl }
+    const link = result.publicUrl;
+    navigator.clipboard.writeText(link);
+    toast.success('Link copiado al portapapeles');
 
-    try {
-      await api.delete(`/cotizaciones/${id}`);
-      await cargarCotizaciones();
-    } catch (e) {
-      alert('Error eliminando cotización');
-    }
+    // Reset form
+    setCodigo('');
+    setPdfFile(null);
+    
+    // Limpiar el input file
+    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+
+    // Recargar datos
+    await cargarDatos();
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || 'Error al crear cotización');
+    console.error(error);
+  } finally {
+    setUploading(false);
   }
+};
 
-  const totalVisitas = cotizaciones.reduce(
-    (acc, c) => acc + (c.total_visitas || 0),
-    0
-  );
+  const copiarLink = (slug: string) => {
+    const link = construirUrlPublica(slug);
+    navigator.clipboard.writeText(link);
+    toast.success('Link copiado al portapapeles');
+  };
+
+  const formatearFecha = (fecha: string) => {
+    return new Date(fecha).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Cargando...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="app">
-      {/* HEADER */}
-      <header className="header">
-        <div className="logo">🔗</div>
-        <div>
-          <h1>SurCompany Tracker</h1>
-          <p>Monitoreo de cotizaciones</p>
+    <>
+      {/* Header */}
+      <div className="page-header">
+        <h1 className="page-title">Dashboard</h1>
+        <p className="page-description">
+          Vista general de tus cotizaciones y métricas de visualización
+        </p>
+      </div>
+
+      {/* Stats Cards */}
+      {metricas && (
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-label">Total Cotizaciones</div>
+            <div className="stat-value">{metricas.totalCotizaciones}</div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-label">Total Visitas</div>
+            <div className="stat-value">{metricas.totalVisitas}</div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-label">Promedio Visitas</div>
+            <div className="stat-value">
+              {metricas.totalCotizaciones > 0
+                ? Math.round(metricas.totalVisitas / metricas.totalCotizaciones)
+                : 0}
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-label">Más Vista</div>
+            <div className="stat-value">
+              {metricas.visitasPorCotizacion.length > 0
+                ? Math.max(...metricas.visitasPorCotizacion.map(v => v.visitas))
+                : 0}
+            </div>
+          </div>
         </div>
-      </header>
+      )}
 
-      {/* CONTENIDO CENTRADO */}
-      <div className="content">
-        {/* STATS */}
-        <div className="stats">
-          <Stat title="Cotizaciones" value={cotizaciones.length} />
-          <Stat title="Total Visitas" value={totalVisitas} />
-          <Stat title="Visitantes Activos" value={0} />
-          <Stat title="Tiempo Promedio" value="0s" />
+      {/* Formulario de Upload */}
+      <div className="form-section">
+        <div className="card-header">
+          <h2 className="card-title">Nueva Cotización</h2>
         </div>
 
-        {/* MAIN */}
-        <div className="main">
-          {/* FORM */}
-          <div className="card form">
-            <h3>✨ Nueva Cotización</h3>
-
-            <label>Código de Cotización</label>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Código de cotización</label>
             <input
+              type="text"
+              className="form-input"
+              placeholder="Ej: COT-2024-001"
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
-              placeholder="Ej: COT-2024-001"
+              required
+              disabled={uploading}
             />
-
-            <label>PDF de la Cotización</label>
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={(e) => setPdf(e.target.files?.[0] || null)}
-            />
-
-            <button onClick={crearCotizacion} disabled={loading}>
-              {loading ? 'Creando...' : 'Crear Cotización'}
-            </button>
           </div>
 
-          {/* LIST */}
-          <div className="list">
-            <h3>Cotizaciones Activas</h3>
-
-            {cotizaciones.map((c) => {
-              const trackingUrl = `${import.meta.env.VITE_PUBLIC_URL}/c/${c.slug}`;
-
-              return (
-                <div key={c.id} className="card cotizacion">
-                  <div className="row">
-                    <strong>{c.codigo}</strong>
-                    <div className="actions">
-                      <button
-                        onClick={() => window.open(trackingUrl, '_blank')}
-                        title="Ver"
-                      >
-                        👁️
-                      </button>
-                      <button
-                        onClick={() => eliminarCotizacion(c.id)}
-                        title="Eliminar"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-
-                  <span className="date">
-                    Creado{' '}
-                    {new Date(c.created_at).toLocaleDateString('es-ES', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                    })}
-                  </span>
-
-                  <div className="mini-stats">
-                    <MiniStat label="Visitas" value={c.total_visitas || 0} />
-                    <MiniStat label="Activos" value={0} />
-                    <MiniStat label="Promedio" value="0s" />
-                  </div>
-
-                  <div className="link">
-                    <span>Link de tracking:</span>
-                    <div className="link-box">
-                      <a href={trackingUrl} target="_blank" rel="noreferrer">
-                        {trackingUrl}
-                      </a>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(trackingUrl);
-                          alert('Link copiado al portapapeles');
-                        }}
-                      >
-                        Copiar
-                      </button>
-                    </div>
-                  </div>
+          <div className="form-group">
+            <label className="form-label">Archivo PDF</label>
+            <div className="form-file-upload">
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                style={{ display: 'none' }}
+                id="file-upload"
+                disabled={uploading}
+              />
+              <label htmlFor="file-upload" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
+                <div className="upload-icon">📄</div>
+                <div className="upload-text">
+                  {pdfFile ? (
+                    <strong>{pdfFile.name}</strong>
+                  ) : (
+                    <strong>Haz clic para seleccionar tu PDF</strong>
+                  )}
                 </div>
-              );
-            })}
+                <div className="upload-hint">Máximo 10MB · Solo archivos PDF</div>
+              </label>
+            </div>
           </div>
-        </div>
+
+          <button
+            type="submit"
+            className="btn btn-primary btn-lg"
+            disabled={uploading || !codigo || !pdfFile}
+          >
+            <span>📤</span>
+            <span>{uploading ? 'Subiendo...' : 'Crear link rastreable'}</span>
+          </button>
+        </form>
       </div>
-    </div>
-  );
-}
 
-/* COMPONENTS */
+      {/* Lista de Cotizaciones */}
+      <div className="list-container">
+        <div className="list-header">
+          <h2 className="list-title">Cotizaciones Activas</h2>
+          <span className="badge badge-neutral">
+            {cotizaciones.length} total
+          </span>
+        </div>
 
-function Stat({ title, value }: any) {
-  return (
-    <div className="stat">
-      <span>{title}</span>
-      <strong>{value}</strong>
-    </div>
+        {cotizaciones.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📄</div>
+            <h3 className="empty-state-title">No hay cotizaciones aún</h3>
+            <p className="empty-state-description">
+              Comienza subiendo tu primer PDF para crear un link rastreable
+            </p>
+          </div>
+        ) : (
+          cotizaciones.map((cot) => (
+            <div key={cot.id} className="list-item">
+              <div className="list-item-content">
+                <h3 className="list-item-title">{cot.codigo}</h3>
+                <a
+                  href={construirUrlPublica(cot.slug)}
+                  className="list-item-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {construirUrlPublica(cot.slug)}
+                </a>
+                <div className="list-item-meta">
+                  <span className="list-item-meta-item">
+                    👁️ <strong>{cot.total_visitas}</strong> visitas
+                  </span>
+                  <span className="list-item-meta-item">
+                    📅 {formatearFecha(cot.created_at)}
+                  </span>
+                  <span className="badge badge-success">Activo</span>
+                </div>
+              </div>
+              <div className="list-item-actions">
+                <button
+                  className="icon-btn"
+                  title="Ver PDF"
+                  onClick={() => window.open(construirUrlPublica(cot.slug), '_blank')}
+                >
+                  👁️
+                </button>
+                <button
+                  className="icon-btn"
+                  title="Copiar link"
+                  onClick={() => copiarLink(cot.slug)}
+                >
+                  📋
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </>
   );
-}
+};
 
-function MiniStat({ label, value }: any) {
-  return (
-    <div className="mini">
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
-}
+export default Dashboard;

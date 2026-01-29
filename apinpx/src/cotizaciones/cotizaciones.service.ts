@@ -1,3 +1,4 @@
+// cotizaciones.service.ts
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 import { randomUUID } from 'crypto';
@@ -112,31 +113,33 @@ export class CotizacionesService {
     };
   }
 
+  // ===============================
+  // 📊 MÉTRICAS DASHBOARD
+  // ===============================
   async obtenerMetricasDashboard() {
-  const { data, error } = await this.supabase.client
-    .from('cotizaciones')
-    .select(`
-      codigo,
-      visitas:visitas(count)
-    `);
+    const { data, error } = await this.supabase.client
+      .from('cotizaciones')
+      .select(`
+        codigo,
+        visitas(id)
+      `);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const visitasPorCotizacion = data.map(c => ({
-    codigo: c.codigo,
-    visitas: c.visitas[0]?.count ?? 0,
-  }));
+    const visitasPorCotizacion = (data || []).map(c => ({
+      codigo: c.codigo,
+      visitas: c.visitas?.length ?? 0,
+    }));
 
-  const totalVisitas = visitasPorCotizacion.reduce(
-    (acc, v) => acc + v.visitas,
-    0,
-  );
+    const totalVisitas = visitasPorCotizacion.reduce(
+      (acc, v) => acc + v.visitas,
+      0,
+    );
 
-  return {
-    totalCotizaciones: data.length,
-    totalVisitas,
-    visitasPorCotizacion,
-  };
-}
-
+    return {
+      totalCotizaciones: data?.length ?? 0,
+      totalVisitas,
+      visitasPorCotizacion,
+    };
+  }
 }
