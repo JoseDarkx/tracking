@@ -1,0 +1,27 @@
+<script>
+  const visitaId = "{{VISITA_ID}}";
+  const start = Date.now();
+
+  function sendLeave() {
+    navigator.sendBeacon(
+      '/track/leave',
+      JSON.stringify({ visitaId, start })
+    );
+  }
+
+  window.addEventListener('beforeunload', sendLeave);
+  window.addEventListener('pagehide', sendLeave);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      sendLeave();
+    }
+  });
+</script>
+const link = document.createElement('a');
+link.href = "${data.pdfUrl}";
+link.download = 'cotizacion.pdf';
+document.body.appendChild(link);
+link.click();
+document.body.removeChild(link);
+</script>
