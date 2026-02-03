@@ -32,7 +32,7 @@ export class AuthService {
       );
     }
 
-    // Buscar usuario
+    // Buscar usuario (AHORA INCLUYE ROLE)
     const { data: user, error } = await this.supabase.client
       .from('usuarios')
       .select('*')
@@ -63,7 +63,10 @@ export class AuthService {
   // 📝 REGISTRAR INTENTO FALLIDO
   // ===============================
   private registerFailedAttempt(email: string) {
-    const attempt = this.loginAttempts.get(email) || { count: 0, blockedUntil: null };
+    const attempt = this.loginAttempts.get(email) || {
+      count: 0,
+      blockedUntil: null,
+    };
     attempt.count += 1;
 
     if (attempt.count >= 3) {
@@ -82,16 +85,23 @@ export class AuthService {
   }
 
   // ===============================
-  // 🎫 GENERAR TOKEN JWT
+  // 🎫 GENERAR TOKEN JWT (ACTUALIZADO CON ROLE)
   // ===============================
   async login(user: any) {
-    const payload = { email: user.email, sub: user.id, nombre: user.nombre };
+    const payload = {
+      email: user.email,
+      sub: user.id,
+      nombre: user.nombre,
+      role: user.role || 'employee', // Incluir role en el payload
+    };
+
     return {
       access_token: this.jwtService.sign(payload),
       user: {
         id: user.id,
         email: user.email,
         nombre: user.nombre,
+        role: user.role || 'employee', // Incluir role en la respuesta
       },
     };
   }
@@ -99,7 +109,12 @@ export class AuthService {
   // ===============================
   // 👤 REGISTRAR NUEVO USUARIO
   // ===============================
-  async register(nombre: string, email: string, password: string) {
+  async register(
+    nombre: string,
+    email: string,
+    password: string,
+    role: string = 'employee', // Por defecto es employee
+  ) {
     // Verificar si el email ya existe
     const { data: existing } = await this.supabase.client
       .from('usuarios')
@@ -109,6 +124,16 @@ export class AuthService {
 
     if (existing) {
       throw new UnauthorizedException('El email ya está registrado');
+    }
+
+    // ⚠️ NOTA DE SEGURIDAD: En producción, solo admins deberían poder crear otros admins
+    // Opción 1: Solo permitir 'employee' durante el registro público
+    // Opción 2: Agregar validación de token de invitación para crear admins
+    // Opción 3: Solo admins autenticados pueden crear otros admins
+    
+    // Validar role
+    if (!['admin', 'employee'].includes(role)) {
+      throw new UnauthorizedException('Role inválido');
     }
 
     // Encriptar contraseña
@@ -122,6 +147,7 @@ export class AuthService {
         nombre,
         email,
         password_hash,
+        role, // Incluir role al crear usuario
       })
       .select()
       .single();
@@ -140,5 +166,22 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Token inválido');
     }
+  }
+
+  // ===============================
+  // 📊 OBTENER PERFIL DEL USUARIO ACTUAL
+  // ===============================
+  async getProfile(userId: string) {
+    const { data: user, error } = await this.supabase.client
+      .from('usuarios')
+      .select('id, nombre, email, role, created_at')
+      .eq('id', userId)
+      .single();
+
+    if (error || !user) {
+      throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    return user;
   }
 }

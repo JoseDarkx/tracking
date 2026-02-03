@@ -13,6 +13,7 @@ const Login = () => {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('employee');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +43,7 @@ const Login = () => {
         localStorage.setItem('user', JSON.stringify(response.user));
         toast.success(`¡Bienvenido ${response.user.nombre}!`);
       } else {
-        const response = await register(nombre, email, password);
+        const response = await register(nombre, email, password, role);
         localStorage.setItem('token', response.access_token);
         localStorage.setItem('user', JSON.stringify(response.user));
         toast.success('¡Cuenta creada exitosamente!');
@@ -118,6 +119,21 @@ const Login = () => {
             )}
           </div>
 
+          {!isLogin && (
+            <div className="form-group">
+              <label className="form-label">Tipo de cuenta</label>
+              <select
+                className="form-input"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                disabled={loading}
+              >
+                <option value="employee">👤 Empleado</option>
+                <option value="admin">👨‍💼 Administrador</option>
+              </select>
+            </div>
+          )}
+
           <button
             type="submit"
             className="btn btn-primary btn-lg"
@@ -143,6 +159,7 @@ const Login = () => {
               setNombre('');
               setEmail('');
               setPassword('');
+              setRole('employee');
             }}
             disabled={loading}
           >

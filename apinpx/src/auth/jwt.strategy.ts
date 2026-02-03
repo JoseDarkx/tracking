@@ -1,10 +1,11 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { SupabaseService } from '../database/supabase.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private readonly supabase: SupabaseService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -13,6 +14,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    return { id: payload.sub, email: payload.email, nombre: payload.nombre };
+    // Obtener el usuario completo con su role desde la base de datos
+    const { data: user, error } = await this.supabase.client
+      .from('usuarios')
+      .select('id, email, nombre, role')
+      .eq('id', payload.sub)
+      .single();
+
+    if (error || !user) {
+      throw new UnauthorizedException('Usuario no encontrado');
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      nombre: user.nombre,
+      role: user.role || 'employee', // default a employee si no tiene role
+    };
   }
 }

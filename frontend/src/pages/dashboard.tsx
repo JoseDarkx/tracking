@@ -6,14 +6,17 @@ import {
   crearCotizacion,
   obtenerMetricas,
   construirUrlPublica,
+  getCurrentUser,
   type Cotizacion,
   type MetricasDashboard,
   type PaginationInfo,
+  type User,
 } from '../services/api';
 
 const Dashboard = () => {
   const [metricas, setMetricas] = useState<MetricasDashboard | null>(null);
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
     limit: 10,
@@ -28,6 +31,8 @@ const Dashboard = () => {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
+    const user = getCurrentUser();
+    setCurrentUser(user);
     cargarDatos();
   }, [pagination.page]);
 
@@ -230,7 +235,16 @@ const handleSubmit = async (e: React.FormEvent) => {
           cotizaciones.map((cot) => (
             <div key={cot.id} className="list-item">
               <div className="list-item-content">
-                <h3 className="list-item-title">{cot.codigo}</h3>
+                <div className="list-item-header">
+                  <h3 className="list-item-title">{cot.codigo}</h3>
+                  {cot.asesor && (
+                    <div className="list-item-asesor">
+                      <span className="badge badge-primary">
+                        👤 {cot.asesor.nombre}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <a
                   href={construirUrlPublica(cot.slug)}
                   className="list-item-link"
@@ -246,6 +260,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <span className="list-item-meta-item">
                     📅 {formatearFecha(cot.created_at)}
                   </span>
+                  {/* Email del asesor oculto por privacidad; sólo se muestra el nombre */}
                   <span className="badge badge-success">Activo</span>
                 </div>
               </div>

@@ -608,11 +608,25 @@ a {
   gap: var(--spacing-sm);
 }
 
+.list-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
 .list-item-title {
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 4px;
+}
+
+.list-item-asesor {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 .list-item-link {

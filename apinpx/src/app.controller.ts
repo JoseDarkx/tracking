@@ -8,8 +8,6 @@ export class AppController {
   @Get('test-supabase')
   async testSupabase() {
     const supabase = this.supabaseService.client;
-;
-
     const { data, error } = await supabase
       .from('cotizaciones')
       .select('*')

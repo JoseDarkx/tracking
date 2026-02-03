@@ -24,6 +24,11 @@ api.interceptors.request.use(
   }
 );
 
+export interface Asesor {
+  nombre: string;
+  email: string;
+}
+
 export interface Cotizacion {
   id: number;
   codigo: string;
@@ -31,6 +36,8 @@ export interface Cotizacion {
   total_visitas: number;
   created_at: string;
   publicUrl?: string;
+  asesor?: Asesor | null;
+  user_id?: string;
 }
 
 export interface PaginationInfo {
@@ -73,8 +80,8 @@ export const login = async (email: string, password: string): Promise<LoginRespo
   return response.data;
 };
 
-export const register = async (nombre: string, email: string, password: string): Promise<LoginResponse> => {
-  const response = await api.post('/auth/register', { nombre, email, password });
+export const register = async (nombre: string, email: string, password: string, role: string = 'employee'): Promise<LoginResponse> => {
+  const response = await api.post('/auth/register', { nombre, email, password, role });
   return response.data;
 };
 

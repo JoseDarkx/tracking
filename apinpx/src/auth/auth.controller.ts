@@ -7,40 +7,45 @@ import {
   Get,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LocalAuthGuard } from './local-auto.guard';
+import { LocalAuthGuard } from './local-auth.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('api/auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // ===============================
-  // 🔐 LOGIN
-  // ===============================
+  // 🔐 Login
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(@Request() req) {
     return this.authService.login(req.user);
   }
 
-  // ===============================
-  // 📝 REGISTER
-  // ===============================
+  // 👤 Registro
   @Post('register')
   async register(
     @Body('nombre') nombre: string,
     @Body('email') email: string,
     @Body('password') password: string,
+    @Body('role') role?: string,
   ) {
-    return this.authService.register(nombre, email, password);
+    return this.authService.register(nombre, email, password, role);
   }
 
-  // ===============================
-  // 👤 PERFIL (Ruta protegida)
-  // ===============================
+  // 📊 Obtener perfil del usuario actual
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  getProfile(@Request() req) {
-    return req.user;
+  async getProfile(@Request() req) {
+    return this.authService.getProfile(req.user.id);
+  }
+
+  // 🔍 Verificar token
+  @UseGuards(JwtAuthGuard)
+  @Get('verify')
+  async verify(@Request() req) {
+    return {
+      ok: true,
+      user: req.user,
+    };
   }
 }
