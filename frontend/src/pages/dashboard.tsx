@@ -1,11 +1,13 @@
 // src/pages/Dashboard.tsx
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   listarCotizaciones,
   crearCotizacion,
   obtenerMetricas,
   construirUrlPublica,
+  eliminarCotizacion,
   getCurrentUser,
   type Cotizacion,
   type MetricasDashboard,
@@ -24,6 +26,13 @@ const Dashboard = () => {
     pages: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Modal state
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    cotizacionId: '',
+    isLoading: false,
+  });
 
   // Form state
   const [codigo, setCodigo] = useState('');
@@ -96,6 +105,44 @@ const handleSubmit = async (e: React.FormEvent) => {
     const link = construirUrlPublica(slug);
     navigator.clipboard.writeText(link);
     toast.success('Link copiado al portapapeles');
+  };
+
+  const handleEliminarClick = (cotizacionId: number) => {
+    setDeleteModal({
+      isOpen: true,
+      cotizacionId: String(cotizacionId),
+      isLoading: false,
+    });
+  };
+
+  const handleConfirmEliminar = async () => {
+    setDeleteModal((prev) => ({ ...prev, isLoading: true }));
+
+    try {
+      await eliminarCotizacion(deleteModal.cotizacionId);
+      toast.success('Cotización eliminada exitosamente');
+      
+      setPagination(prev => ({ ...prev, page: 1 }));
+      await cargarDatos();
+
+      setDeleteModal({
+        isOpen: false,
+        cotizacionId: '',
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error('Error al eliminar:', error);
+      toast.error('Error al eliminar la cotización');
+      setDeleteModal((prev) => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleCancelEliminar = () => {
+    setDeleteModal({
+      isOpen: false,
+      cotizacionId: '',
+      isLoading: false,
+    });
   };
 
   const formatearFecha = (fecha: string) => {
@@ -279,6 +326,13 @@ const handleSubmit = async (e: React.FormEvent) => {
                 >
                   📋
                 </button>
+                <button
+                  className="icon-btn icon-btn-danger"
+                  title="Eliminar"
+                  onClick={() => handleEliminarClick(cot.id)}
+                >
+                  🗑️
+                </button>
               </div>
             </div>
           ))
@@ -314,6 +368,18 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteModal.isOpen}
+        title="Eliminar cotización"
+        message="¿Estás seguro de que deseas eliminar esta cotización? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        isDangerous={true}
+        onConfirm={handleConfirmEliminar}
+        onCancel={handleCancelEliminar}
+        isLoading={deleteModal.isLoading}
+      />
     </>
   );
 };

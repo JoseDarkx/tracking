@@ -688,6 +688,12 @@ a {
   border-color: var(--gray-400);
 }
 
+.icon-btn-danger:hover {
+  background: var(--error);
+  color: white;
+  border-color: var(--error);
+}
+
 .icon-btn.danger:hover {
   background: var(--error);
   color: white;

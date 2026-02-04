@@ -502,4 +502,40 @@ export class CotizacionesService {
       empleados,
     };
   }
+
+  async eliminar(cotizacionId: string, userId: string, userRole: string) {
+    const { data: cotizacion, error: errorGet } = await this.supabase.client
+      .from('cotizaciones')
+      .select('id, user_id')
+      .eq('id', cotizacionId)
+      .single();
+
+    if (errorGet || !cotizacion) {
+      throw new NotFoundException('Cotización no encontrada');
+    }
+
+    if (userRole === 'employee' && cotizacion.user_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para eliminar esta cotización');
+    }
+
+    const { error: errorVisitas } = await this.supabase.client
+      .from('visitas')
+      .delete()
+      .eq('cotizacion_id', cotizacionId);
+
+    if (errorVisitas) {
+      throw new Error(`Error al eliminar visitas: ${errorVisitas.message}`);
+    }
+
+    const { error: errorDelete } = await this.supabase.client
+      .from('cotizaciones')
+      .delete()
+      .eq('id', cotizacionId);
+
+    if (errorDelete) {
+      throw new Error(`Error al eliminar cotización: ${errorDelete.message}`);
+    }
+
+    return { ok: true, message: 'Cotización eliminada exitosamente' };
+  }
 }

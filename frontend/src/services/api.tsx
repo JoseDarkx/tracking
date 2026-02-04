@@ -85,6 +85,11 @@ export const register = async (nombre: string, email: string, password: string, 
   return response.data;
 };
 
+export const eliminarCotizacion = async (cotizacionId: string) => {
+  const response = await api.delete(`/cotizaciones/${cotizacionId}`);
+  return response.data;
+};
+
 export const getProfile = async (): Promise<User> => {
   const response = await api.get('/auth/profile');
   return response.data;

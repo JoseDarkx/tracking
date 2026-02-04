@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   UploadedFile,
   UseInterceptors,
@@ -108,6 +109,16 @@ export class CotizacionesController {
   @Roles('employee', 'admin')
   obtenerMetricas(@CurrentUser() user: UserPayload) {
     return this.service.obtenerMetricasDashboard(user.id, user.role);
+  }
+
+  // 🗑️ Eliminar cotización
+  @Delete('cotizaciones/:id')
+  @Roles('employee', 'admin')
+  eliminar(
+    @Param('id') id: string,
+    @CurrentUser() user: UserPayload,
+  ) {
+    return this.service.eliminar(id, user.id, user.role);
   }
 }
 
