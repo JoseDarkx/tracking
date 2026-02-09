@@ -14,7 +14,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // Obtener el usuario completo con su role desde la base de datos
+    // Obtener el usuario completo con su rol desde la base de datos
     const { data: user, error } = await this.supabase.client
       .from('usuarios')
       .select('id, email, nombre, role')

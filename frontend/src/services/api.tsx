@@ -1,7 +1,7 @@
-// frontend/src/services/api.tsx
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -10,7 +10,9 @@ const api = axios.create({
   },
 });
 
-// Interceptor para agregar token a todas las peticiones
+// ===============================
+// 🔐 INTERCEPTOR JWT
+// ===============================
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -19,14 +21,15 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error),
 );
 
+// ===============================
+// 📦 TYPES
+// ===============================
 export interface Asesor {
   nombre: string;
-  email: string;
+  email?: string;
 }
 
 export interface Cotizacion {
@@ -65,6 +68,7 @@ export interface User {
   id: string;
   email: string;
   nombre: string;
+  role: 'admin' | 'employee';
 }
 
 export interface LoginResponse {
@@ -75,20 +79,61 @@ export interface LoginResponse {
 // ===============================
 // 🔐 AUTH
 // ===============================
-export const login = async (email: string, password: string): Promise<LoginResponse> => {
+export const login = async (
+  email: string,
+  password: string,
+): Promise<LoginResponse> => {
   const response = await api.post('/auth/login', { email, password });
   return response.data;
 };
 
-export const register = async (nombre: string, email: string, password: string, role: string = 'employee'): Promise<LoginResponse> => {
-  const response = await api.post('/auth/register', { nombre, email, password, role });
+/**
+ * ⚠️ NO usar en frontend público
+ * Se mantiene solo para compatibilidad
+ */
+export const register = async (
+  nombre: string,
+  email: string,
+  password: string,
+  role: string = 'employee',
+): Promise<LoginResponse> => {
+  const response = await api.post('/auth/register', {
+    nombre,
+    email,
+    password,
+    role,
+  });
   return response.data;
 };
 
-export const eliminarCotizacion = async (cotizacionId: string) => {
-  const response = await api.delete(`/cotizaciones/${cotizacionId}`);
+// ===============================
+// 👨‍💼 ADMIN
+// ===============================
+export interface CreateUserPayload {
+  nombre: string;
+  email: string;
+  password: string;
+  role: 'admin' | 'employee';
+}
+
+/**
+ * Función real (endpoint admin)
+ */
+export const adminCreateUser = async (
+  payload: CreateUserPayload,
+) => {
+  const response = await api.post(
+    '/auth/admin/create-user',
+    payload,
+  );
   return response.data;
 };
+
+/**
+ * ✅ Alias para evitar romper imports existentes
+ * createUser === adminCreateUser
+ */
+export const createUser = adminCreateUser;
 
 export const getProfile = async (): Promise<User> => {
   const response = await api.get('/auth/profile');
@@ -112,7 +157,10 @@ export const getCurrentUser = (): User | null => {
 // ===============================
 // 📄 COTIZACIONES
 // ===============================
-export const listarCotizaciones = async (page: number = 1, limit: number = 10): Promise<ListarCotizacionesResponse> => {
+export const listarCotizaciones = async (
+  page: number = 1,
+  limit: number = 10,
+): Promise<ListarCotizacionesResponse> => {
   const response = await api.get('/cotizaciones', {
     params: { page, limit },
   });
@@ -121,7 +169,7 @@ export const listarCotizaciones = async (page: number = 1, limit: number = 10): 
 
 export const crearCotizacion = async (
   codigo: string,
-  pdfFile: File
+  pdfFile: File,
 ): Promise<any> => {
   const formData = new FormData();
   formData.append('codigo', codigo);
@@ -136,13 +184,22 @@ export const crearCotizacion = async (
   return response.data;
 };
 
+export const eliminarCotizacion = async (cotizacionId: string) => {
+  const response = await api.delete(`/cotizaciones/${cotizacionId}`);
+  return response.data;
+};
+
 export const obtenerMetricas = async (): Promise<MetricasDashboard> => {
   const response = await api.get('/metricas');
   return response.data;
 };
 
+// ===============================
+// 🌐 PUBLIC URL
+// ===============================
 export const construirUrlPublica = (slug: string): string => {
-  const baseUrl = import.meta.env.VITE_PUBLIC_URL || 'http://localhost:3000';
+  const baseUrl =
+    import.meta.env.VITE_PUBLIC_URL || 'http://localhost:3000';
   return `${baseUrl}/c/${slug}`;
 };
 

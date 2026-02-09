@@ -132,7 +132,7 @@ export class AuthService {
     // Opción 3: Solo admins autenticados pueden crear otros admins
     
     // Validar role
-    if (!['admin', 'employee'].includes(role)) {
+    if (!['admin', 'employee', 'superadmin'].includes(role)) {
       throw new UnauthorizedException('Role inválido');
     }
 
