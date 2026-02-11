@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SupabaseService } from '../database/supabase.service';
 import * as bcrypt from 'bcrypt';
+import { NotFoundException } from '@nestjs/common';
 
 interface LoginAttempt {
   count: number;
@@ -167,6 +168,38 @@ export class AuthService {
       throw new UnauthorizedException('Token inválido');
     }
   }
+
+    // ===============================
+  // 🔑 CAMBIAR PASSWORD (SOLO ADMIN)
+  // ===============================
+      async adminChangePasswordByEmail(
+      email: string,
+      newPassword: string,
+    ) {
+      const { data: user, error } = await this.supabase.client
+        .from('usuarios')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (error || !user) {
+        throw new NotFoundException('Usuario no encontrado');
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      const { error: updateError } = await this.supabase.client
+        .from('usuarios')
+        .update({ password_hash: hashedPassword })
+        .eq('email', email);
+
+      if (updateError) {
+        throw new Error('Error actualizando contraseña');
+      }
+
+      return { message: 'Contraseña actualizada correctamente' };
+    }
+
 
   // ===============================
   // 📊 OBTENER PERFIL DEL USUARIO ACTUAL

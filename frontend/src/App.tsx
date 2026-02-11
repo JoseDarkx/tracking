@@ -1,12 +1,14 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import ProtectedRoute from './components/ProtectedRoute';
 
 import Dashboard from './pages/dashboard';
 import Login from './pages/Login';
 import AdminCreateUser from './pages/AdminCreateUser';
+import PublicView from './pages/PublicView';
 
 function App() {
   const PrivateLayout = ({ children }: { children: React.ReactNode }) => (
@@ -15,9 +17,7 @@ function App() {
       <div className="app">
         <Sidebar />
         <main className="main">
-          <div className="main-container">
-            {children}
-          </div>
+          <div className="main-container">{children}</div>
         </main>
       </div>
     </>
@@ -28,25 +28,33 @@ function App() {
       <Toaster position="bottom-right" />
 
       <Routes>
+        {/* ROOT → siempre manda a login */}
+        <Route path="/" element={<Navigate to="/login" />} />
+
         {/* PUBLIC */}
         <Route path="/login" element={<Login />} />
+        <Route path="/c/:slug" element={<PublicView />} />
 
         {/* PRIVATE */}
         <Route
-          path="/"
+          path="/dashboard"
           element={
-            <PrivateLayout>
-              <Dashboard />
-            </PrivateLayout>
+            <ProtectedRoute>
+              <PrivateLayout>
+                <Dashboard />
+              </PrivateLayout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/admin/usuarios"
           element={
-            <PrivateLayout>
-              <AdminCreateUser />
-            </PrivateLayout>
+            <ProtectedRoute>
+              <PrivateLayout>
+                <AdminCreateUser />
+              </PrivateLayout>
+            </ProtectedRoute>
           }
         />
       </Routes>

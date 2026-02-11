@@ -133,29 +133,19 @@ export class PublicController {
   async abrirPdf(
     @Param('slug') slug: string,
     @Req() req: Request,
-    @Res() res: Response,
   ) {
     const data = await this.service.abrirConTracking(slug, req);
-
+    
     if (!data) {
       throw new NotFoundException('Cotización no encontrada');
     }
 
-    res.setHeader('Content-Type', 'text/html');
-
-    return res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Cotización</title>
-</head>
-<body style="margin:0">
-  <iframe 
-    src="${data.pdfUrl}" 
-    style="width:100vw;height:100vh;border:none">
-  </iframe>
-</body>
-</html>
-    `);
+    // ✅ Devolver JSON en lugar de HTML
+    return {
+      pdfUrl: data.pdfUrl,
+      visitaId: data.visitaId,
+      codigo: data.codigo,
+      asesorNombre: data.asesorNombre,
+    };
   }
 }

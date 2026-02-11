@@ -76,6 +76,20 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface CotizacionPublicaData {
+  pdfUrl: string;
+  visitaId: string;
+  codigo: string;
+  asesorNombre: string;
+}
+
+export interface CreateUserPayload {
+  nombre: string;
+  email: string;
+  password: string;
+  role: 'admin' | 'employee';
+}
+
 // ===============================
 // 🔐 AUTH
 // ===============================
@@ -87,10 +101,6 @@ export const login = async (
   return response.data;
 };
 
-/**
- * ⚠️ NO usar en frontend público
- * Se mantiene solo para compatibilidad
- */
 export const register = async (
   nombre: string,
   email: string,
@@ -106,19 +116,6 @@ export const register = async (
   return response.data;
 };
 
-// ===============================
-// 👨‍💼 ADMIN
-// ===============================
-export interface CreateUserPayload {
-  nombre: string;
-  email: string;
-  password: string;
-  role: 'admin' | 'employee';
-}
-
-/**
- * Función real (endpoint admin)
- */
 export const adminCreateUser = async (
   payload: CreateUserPayload,
 ) => {
@@ -129,11 +126,18 @@ export const adminCreateUser = async (
   return response.data;
 };
 
-/**
- * ✅ Alias para evitar romper imports existentes
- * createUser === adminCreateUser
- */
 export const createUser = adminCreateUser;
+
+export const adminChangePasswordByEmail = async (
+  email: string,
+  newPassword: string,
+) => {
+  const response = await api.post('/auth/admin/change-password', {
+    email,
+    newPassword,
+  });
+  return response.data;
+};
 
 export const getProfile = async (): Promise<User> => {
   const response = await api.get('/auth/profile');
@@ -199,8 +203,18 @@ export const obtenerMetricas = async (): Promise<MetricasDashboard> => {
 // ===============================
 export const construirUrlPublica = (slug: string): string => {
   const baseUrl =
-    import.meta.env.VITE_PUBLIC_URL || 'http://localhost:3000';
+    import.meta.env.VITE_PUBLIC_URL || 'http://localhost:5173';
   return `${baseUrl}/c/${slug}`;
+};
+
+// ===============================
+// 🌐 PUBLIC - COTIZACIÓN PÚBLICA (sin auth)
+// ===============================
+export const obtenerCotizacionPublica = async (
+  slug: string,
+): Promise<CotizacionPublicaData> => {
+  const response = await axios.get(`/c/${slug}`);
+  return response.data;
 };
 
 export default api;

@@ -7,9 +7,6 @@ import type { Request } from 'express';
 export class CotizacionesService {
   constructor(private readonly supabase: SupabaseService) {}
 
-  // ======================================================
-  // 📄 LISTAR COTIZACIONES (CON CONTROL DE ROL)
-  // ======================================================
   async listar(page = 1, limit = 10, userId?: string, userRole?: string) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -18,22 +15,15 @@ export class CotizacionesService {
       .from('cotizaciones')
       .select(
         `
-        id,
-        codigo,
-        slug,
-        pdf_path,
-        created_at,
-        user_id,
+        id, codigo, slug, pdf_path, created_at, user_id,
         visitas ( id )
       `,
         { count: 'exact' },
       );
 
-    // Si es employee, solo ver sus propias cotizaciones
     if (userRole === 'employee') {
       query = query.eq('user_id', userId);
     }
-    // Si es admin, ver todas (no se agrega filtro)
 
     const { data, count, error } = await query
       .order('created_at', { ascending: false })
@@ -41,7 +31,6 @@ export class CotizacionesService {
 
     if (error) throw error;
 
-    // Si es admin, obtener información de usuarios para cada cotización
     let result = (data || []).map((c: any) => ({
       id: c.id,
       codigo: c.codigo,
@@ -52,10 +41,9 @@ export class CotizacionesService {
       user_id: c.user_id,
     }));
 
-    // Si es admin, agregar información del asesor
     if (userRole === 'admin' && result.length > 0) {
       const userIds = [...new Set(result.map(c => c.user_id).filter(Boolean))];
-      
+
       if (userIds.length > 0) {
         const { data: usuarios } = await this.supabase.client
           .from('usuarios')
@@ -68,10 +56,9 @@ export class CotizacionesService {
           const usuario = usuariosMap.get(c.user_id);
           return {
             ...c,
-            asesor: usuario ? {
-              nombre: usuario.nombre,
-              email: usuario.email,
-            } : null,
+            asesor: usuario
+              ? { nombre: usuario.nombre, email: usuario.email }
+              : null,
           };
         });
       }
@@ -88,9 +75,6 @@ export class CotizacionesService {
     };
   }
 
-  // ======================================================
-  // 👥 LISTAR TODAS LAS COTIZACIONES (SOLO ADMIN)
-  // ======================================================
   async listarTodasParaAdmin(page = 1, limit = 10) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -99,12 +83,7 @@ export class CotizacionesService {
       .from('cotizaciones')
       .select(
         `
-        id,
-        codigo,
-        slug,
-        pdf_path,
-        created_at,
-        user_id,
+        id, codigo, slug, pdf_path, created_at, user_id,
         visitas ( id )
       `,
         { count: 'exact' },
@@ -114,7 +93,6 @@ export class CotizacionesService {
 
     if (error) throw error;
 
-    // Obtener información de usuarios
     let result = (data || []).map((c: any) => ({
       id: c.id,
       codigo: c.codigo,
@@ -127,7 +105,7 @@ export class CotizacionesService {
 
     if (result.length > 0) {
       const userIds = [...new Set(result.map(c => c.user_id).filter(Boolean))];
-      
+
       if (userIds.length > 0) {
         const { data: usuarios } = await this.supabase.client
           .from('usuarios')
@@ -140,12 +118,14 @@ export class CotizacionesService {
           const usuario = usuariosMap.get(c.user_id);
           return {
             ...c,
-            asesor: usuario ? {
-              id: usuario.id,
-              nombre: usuario.nombre,
-              email: usuario.email,
-              role: usuario.role,
-            } : null,
+            asesor: usuario
+              ? {
+                  id: usuario.id,
+                  nombre: usuario.nombre,
+                  email: usuario.email,
+                  role: usuario.role,
+                }
+              : null,
           };
         });
       }
@@ -162,9 +142,6 @@ export class CotizacionesService {
     };
   }
 
-  // ======================================================
-  // 👤 LISTAR COTIZACIONES DE UN EMPLEADO (SOLO ADMIN)
-  // ======================================================
   async listarPorEmpleado(empleadoId: string, page = 1, limit = 10) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -173,11 +150,7 @@ export class CotizacionesService {
       .from('cotizaciones')
       .select(
         `
-        id,
-        codigo,
-        slug,
-        pdf_path,
-        created_at,
+        id, codigo, slug, pdf_path, created_at,
         visitas ( id )
       `,
         { count: 'exact' },
@@ -206,9 +179,6 @@ export class CotizacionesService {
     };
   }
 
-  // ======================================================
-  // 📤 CREAR COTIZACIÓN + SUBIR PDF
-  // ======================================================
   async crear(codigo: string, pdf: Express.Multer.File, userId: string) {
     if (!pdf) throw new Error('PDF no recibido');
 
@@ -230,7 +200,7 @@ export class CotizacionesService {
         codigo,
         slug,
         pdf_path: filePath,
-        user_id: userId, // Ahora es requerido
+        user_id: userId,
       })
       .select()
       .single();
@@ -244,101 +214,71 @@ export class CotizacionesService {
     };
   }
 
-  // ======================================================
-  // 🔍 OBTENER UNA COTIZACIÓN (CON CONTROL DE ACCESO)
-  // ======================================================
-  async obtenerPorId(cotizacionId: string, userId: string, userRole: string) {
-    const { data: cotizacion, error } = await this.supabase.client
+  async obtenerPorId(id: string, userId: string, role: string) {
+    const { data, error } = await this.supabase.client
       .from('cotizaciones')
-      .select(
-        `
-        id,
-        codigo,
-        slug,
-        pdf_path,
-        created_at,
-        user_id,
-        visitas (
-          id,
-          visitor_id,
-          ip,
-          fecha_entrada,
-          eventos (
-            tipo,
-            created_at
-          )
-        )
-      `,
-      )
-      .eq('id', cotizacionId)
+      .select('*')
+      .eq('id', id)
       .single();
 
-    if (error || !cotizacion) {
-      throw new NotFoundException('Cotización no encontrada');
+    if (error || !data) throw new NotFoundException('Cotización no encontrada');
+
+    if (role === 'employee' && data.user_id !== userId) {
+      throw new ForbiddenException('No tienes permiso');
     }
 
-    // Si es employee, verificar que sea su cotización
-    if (userRole === 'employee' && cotizacion.user_id !== userId) {
-      throw new ForbiddenException('No tienes acceso a esta cotización');
-    }
-
-    const result: any = {
-      id: cotizacion.id,
-      codigo: cotizacion.codigo,
-      slug: cotizacion.slug,
-      pdf_path: cotizacion.pdf_path,
-      created_at: cotizacion.created_at,
-      total_visitas: cotizacion.visitas?.length ?? 0,
-      visitas: cotizacion.visitas || [],
-    };
-
-    // Si es admin, obtener información del usuario
-    if (userRole === 'admin' && cotizacion.user_id) {
-      const { data: usuario } = await this.supabase.client
-        .from('usuarios')
-        .select('nombre, email')
-        .eq('id', cotizacion.user_id)
-        .single();
-
-      if (usuario) {
-        result.asesor = {
-          nombre: usuario.nombre,
-          email: usuario.email,
-        };
-      }
-    }
-
-    return result;
+    return data;
   }
 
-  // ======================================================
-  // 🌍 ABRIR LINK PÚBLICO + TRACKING + WEBHOOK
-  // ======================================================
+  async obtenerEstadisticasGlobales() {
+    const { count: totalCotizaciones } = await this.supabase.client
+      .from('cotizaciones')
+      .select('*', { count: 'exact', head: true });
+
+    const { count: totalVisitas } = await this.supabase.client
+      .from('visitas')
+      .select('*', { count: 'exact', head: true });
+
+    return {
+      totalCotizaciones: totalCotizaciones ?? 0,
+      totalVisitas: totalVisitas ?? 0,
+    };
+  }
+
+async obtenerMetricasDashboard(userId: string, role: string) {
+  if (role === 'admin') return this.obtenerEstadisticasGlobales();
+
+  const { count: cotizaciones } = await this.supabase.client
+    .from('cotizaciones')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  const { count: visitas } = await this.supabase.client
+    .from('visitas')
+    .select('id, cotizaciones!inner(user_id)', { count: 'exact', head: true })
+    .eq('cotizaciones.user_id', userId);
+
+  return {
+    totalCotizaciones: cotizaciones ?? 0,
+    totalVisitas: visitas ?? 0,
+  };
+}
+
+
   async abrirConTracking(slug: string, req: Request) {
     const { data: cotizacion, error } = await this.supabase.client
       .from('cotizaciones')
-      .select(
-        `
-        id,
-        codigo,
-        pdf_path,
-        user_id
-      `,
-      )
+      .select('id, codigo, pdf_path, user_id')
       .eq('slug', slug)
       .single();
 
-    if (error || !cotizacion) {
-      throw new NotFoundException('Cotización no encontrada');
-    }
+    if (error || !cotizacion) throw new NotFoundException('Cotización no encontrada');
 
-    const visitorId = randomUUID();
-
-    const { data: visita, error: visitaError } = await this.supabase.client
+    const { data: visita } = await this.supabase.client
       .from('visitas')
       .insert({
         cotizacion_id: cotizacion.id,
-        visitor_id: visitorId,
+        visitor_id: randomUUID(),
         ip: req.ip,
         user_agent: req.headers['user-agent'],
         fecha_entrada: new Date().toISOString(),
@@ -346,60 +286,44 @@ export class CotizacionesService {
       .select()
       .single();
 
-    if (visitaError) throw visitaError;
-
-    // 🟢 EVENTO ENTER
     await this.supabase.client.from('eventos').insert({
       visita_id: visita.id,
       tipo: 'enter',
     });
 
-    // 🔔 WEBHOOK (NO BLOQUEANTE)
+    let asesorNombre = 'Asesor Kombai';
+    let asesorEmail: string | null = null;
+
+    if (cotizacion.user_id) {
+      const { data: usuario } = await this.supabase.client
+        .from('usuarios')
+        .select('nombre, email')
+        .eq('id', cotizacion.user_id)
+        .single();
+
+      if (usuario?.nombre) asesorNombre = usuario.nombre;
+      if (usuario?.email) asesorEmail = usuario.email;
+    }
+
+    // 🔔 WEBHOOK (ÚNICO CAMBIO)
     if (process.env.WEBHOOK_URL) {
-      let asesor = {
-        nombre: 'Sin asesor',
-        email: 'N/A',
-        id: null,
-      };
-      
-      // Obtener información completa del asesor
-      if (cotizacion.user_id) {
-        const { data: usuario } = await this.supabase.client
-          .from('usuarios')
-          .select('id, nombre, email')
-          .eq('id', cotizacion.user_id)
-          .single();
-        
-        if (usuario) {
-          asesor = {
-            id: usuario.id,
-            nombre: usuario.nombre,
-            email: usuario.email,
-          };
-        }
-      }
-      
       fetch(process.env.WEBHOOK_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event: 'cotizacion_abierta',
-          asesor: {
-            id: asesor.id,
-            nombre: asesor.nombre,
-            email: asesor.email,
-          },
           cotizacion: {
-            codigo: cotizacion.codigo,
             id: cotizacion.id,
+            codigo: cotizacion.codigo,
+          },
+          visita_id: visita.id,
+          asesor: {
+            nombre: asesorNombre,
+            email: asesorEmail,
           },
           fecha_hora: new Date().toISOString(),
         }),
-      }).catch((error) => {
-        console.error('❌ Error enviando webhook:', error.message);
-      });
+      }).catch(() => {});
     }
 
     const { data: publicUrl } = this.supabase.client.storage
@@ -409,133 +333,27 @@ export class CotizacionesService {
     return {
       pdfUrl: publicUrl.publicUrl,
       visitaId: visita.id,
-    };
-  }
-
-  // ======================================================
-  // 📊 MÉTRICAS DASHBOARD (CON CONTROL DE ROL)
-  // ======================================================
-  async obtenerMetricasDashboard(userId?: string, userRole?: string) {
-    let query = this.supabase.client.from('cotizaciones').select(`
-      codigo,
-      user_id,
-      visitas ( id )
-    `);
-
-    // Si es employee, solo sus cotizaciones
-    if (userRole === 'employee') {
-      query = query.eq('user_id', userId);
-    }
-
-    const { data, error } = await query;
-
-    if (error) throw error;
-
-    const visitasPorCotizacion = (data || []).map((c: any) => ({
-      codigo: c.codigo,
-      visitas: c.visitas?.length ?? 0,
-    }));
-
-    return {
-      totalCotizaciones: data?.length ?? 0,
-      totalVisitas: visitasPorCotizacion.reduce((acc, v) => acc + v.visitas, 0),
-      visitasPorCotizacion,
-    };
-  }
-
-  // ======================================================
-  // 📊 ESTADÍSTICAS GLOBALES (SOLO ADMIN)
-  // ======================================================
-  async obtenerEstadisticasGlobales() {
-    // Total de cotizaciones
-    const { count: totalCotizaciones } = await this.supabase.client
-      .from('cotizaciones')
-      .select('*', { count: 'exact', head: true });
-
-    // Total de visitas
-    const { count: totalVisitas } = await this.supabase.client
-      .from('visitas')
-      .select('*', { count: 'exact', head: true });
-
-    // Obtener todos los usuarios que tienen cotizaciones
-    const { data: cotizaciones } = await this.supabase.client
-      .from('cotizaciones')
-      .select('user_id');
-
-    const userIds = [...new Set(cotizaciones?.map(c => c.user_id).filter(Boolean))];
-
-    if (userIds.length === 0) {
-      return {
-        totalCotizaciones: totalCotizaciones ?? 0,
-        totalVisitas: totalVisitas ?? 0,
-        empleados: [],
-      };
-    }
-
-    // Obtener información de usuarios
-    const { data: usuarios } = await this.supabase.client
-      .from('usuarios')
-      .select('id, nombre, email')
-      .in('id', userIds);
-
-    // Contar cotizaciones por empleado
-    const empleadosMap = new Map();
-    cotizaciones?.forEach((c: any) => {
-      const userId = c.user_id;
-      if (!empleadosMap.has(userId)) {
-        empleadosMap.set(userId, 0);
-      }
-      empleadosMap.set(userId, empleadosMap.get(userId) + 1);
-    });
-
-    const empleados = usuarios?.map(usuario => ({
-      usuario: {
-        nombre: usuario.nombre,
-        email: usuario.email,
-      },
-      cantidad: empleadosMap.get(usuario.id) || 0,
-    })) || [];
-
-    return {
-      totalCotizaciones: totalCotizaciones ?? 0,
-      totalVisitas: totalVisitas ?? 0,
-      empleados,
+      codigo: cotizacion.codigo,
+      asesorNombre,
     };
   }
 
   async eliminar(cotizacionId: string, userId: string, userRole: string) {
-    const { data: cotizacion, error: errorGet } = await this.supabase.client
+    const { data: cotizacion } = await this.supabase.client
       .from('cotizaciones')
       .select('id, user_id')
       .eq('id', cotizacionId)
       .single();
 
-    if (errorGet || !cotizacion) {
-      throw new NotFoundException('Cotización no encontrada');
-    }
+    if (!cotizacion) throw new NotFoundException('Cotización no encontrada');
 
     if (userRole === 'employee' && cotizacion.user_id !== userId) {
-      throw new ForbiddenException('No tienes permiso para eliminar esta cotización');
+      throw new ForbiddenException('No tienes permiso');
     }
 
-    const { error: errorVisitas } = await this.supabase.client
-      .from('visitas')
-      .delete()
-      .eq('cotizacion_id', cotizacionId);
+    await this.supabase.client.from('visitas').delete().eq('cotizacion_id', cotizacionId);
+    await this.supabase.client.from('cotizaciones').delete().eq('id', cotizacionId);
 
-    if (errorVisitas) {
-      throw new Error(`Error al eliminar visitas: ${errorVisitas.message}`);
-    }
-
-    const { error: errorDelete } = await this.supabase.client
-      .from('cotizaciones')
-      .delete()
-      .eq('id', cotizacionId);
-
-    if (errorDelete) {
-      throw new Error(`Error al eliminar cotización: ${errorDelete.message}`);
-    }
-
-    return { ok: true, message: 'Cotización eliminada exitosamente' };
+    return { ok: true };
   }
 }

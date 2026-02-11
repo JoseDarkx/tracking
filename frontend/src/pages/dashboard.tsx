@@ -52,6 +52,12 @@ const Dashboard = () => {
         obtenerMetricas(),
         listarCotizaciones(pagination.page, 10),
       ]);
+
+      // Proteger de undefined en metricasData.visitasPorCotizacion
+      if (!metricasData?.visitasPorCotizacion) {
+        metricasData.visitasPorCotizacion = [];
+      }
+
       setMetricas(metricasData);
       setCotizaciones(cotizacionesResponse.data);
       setPagination(cotizacionesResponse.pagination);
@@ -63,43 +69,42 @@ const Dashboard = () => {
     }
   };
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!codigo || !pdfFile) {
-    toast.error('Completa todos los campos');
-    return;
-  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!codigo || !pdfFile) {
+      toast.error('Completa todos los campos');
+      return;
+    }
 
-  try {
-    setUploading(true);
-    const result = await crearCotizacion(codigo, pdfFile);
-    
-    toast.success('¡Cotización creada exitosamente!');
-    
-    // El backend devuelve { ok, cotizacion, publicUrl }
-    const link = result.publicUrl;
-    navigator.clipboard.writeText(link);
-    toast.success('Link copiado al portapapeles');
+    try {
+      setUploading(true);
+      const result = await crearCotizacion(codigo, pdfFile);
 
-    // Reset form
-    setCodigo('');
-    setPdfFile(null);
-    
-    // Limpiar el input file
-    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-    if (fileInput) fileInput.value = '';
+      toast.success('¡Cotización creada exitosamente!');
 
-    // Recargar datos - volver a página 1
-    setPagination(prev => ({ ...prev, page: 1 }));
-    // Recargar datos
-    await cargarDatos();
-  } catch (error: any) {
-    toast.error(error.response?.data?.message || 'Error al crear cotización');
-    console.error(error);
-  } finally {
-    setUploading(false);
-  }
-};
+      // El backend devuelve { ok, cotizacion, publicUrl }
+      const link = result.publicUrl;
+      navigator.clipboard.writeText(link);
+      toast.success('Link copiado al portapapeles');
+
+      // Reset form
+      setCodigo('');
+      setPdfFile(null);
+
+      // Limpiar el input file
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+
+      // Recargar datos - volver a página 1
+      setPagination(prev => ({ ...prev, page: 1 }));
+      await cargarDatos();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Error al crear cotización');
+      console.error(error);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const copiarLink = (slug: string) => {
     const link = construirUrlPublica(slug);
@@ -121,7 +126,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     try {
       await eliminarCotizacion(deleteModal.cotizacionId);
       toast.success('Cotización eliminada exitosamente');
-      
+
       setPagination(prev => ({ ...prev, page: 1 }));
       await cargarDatos();
 
@@ -197,8 +202,8 @@ const handleSubmit = async (e: React.FormEvent) => {
           <div className="stat-card">
             <div className="stat-label">Más Vista</div>
             <div className="stat-value">
-              {metricas.visitasPorCotizacion.length > 0
-                ? Math.max(...metricas.visitasPorCotizacion.map(v => v.visitas))
+              {(metricas?.visitasPorCotizacion?.length ?? 0) > 0
+                ? Math.max(...(metricas.visitasPorCotizacion?.map(v => v.visitas) ?? [0]))
                 : 0}
             </div>
           </div>

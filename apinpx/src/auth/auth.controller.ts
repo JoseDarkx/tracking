@@ -5,6 +5,7 @@ import {
   UseGuards,
   Request,
   Get,
+  Param,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './local-auth.guard';
@@ -35,6 +36,20 @@ export class AuthController {
   ) {
     return this.authService.register(nombre, email, password, role);
   }
+
+  // 🔑 CAMBIAR PASSWORD (SOLO ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('admin/change-password')
+  async adminChangePassword(
+    @Body('email') email: string,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.authService.adminChangePasswordByEmail(
+      email,
+      newPassword,
+    );
+}
 
   // 📊 PERFIL
   @UseGuards(JwtAuthGuard)

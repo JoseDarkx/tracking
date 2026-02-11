@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import logo from '../assets/icono.png';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { login } from '../services/api';
+import { login, isAuthenticated } from '../services/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -10,6 +10,13 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // 🔐 Si ya está autenticado, no dejar ver el login
+  useEffect(() => {
+    if (isAuthenticated()) {
+      navigate('/dashboard');
+    }
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +36,10 @@ const Login = () => {
       localStorage.setItem('user', JSON.stringify(response.user));
 
       toast.success(`Bienvenido ${response.user.nombre}`);
-      navigate('/');
+
+      // 🔥 Redirige correctamente al dashboard
+      navigate('/dashboard');
+
     } catch (error: any) {
       if (error.response?.status === 401) {
         toast.error('Credenciales incorrectas');
