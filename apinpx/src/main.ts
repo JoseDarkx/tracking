@@ -4,13 +4,19 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // 👉 Habilitar CORS
+  // 👉 Habilitar CORS para local y para producción
   app.enableCors({
-    origin: 'http://localhost:5173', // Tu frontend
+    origin: [
+      'http://localhost:5173', 
+      'https://surcompany-tracking.netlify.app' // URL de tu frontend en Netlify
+    ],
     credentials: true,
   });
 
-  await app.listen(3000);
-  console.log('🚀 Backend running on http://localhost:3000');
+  // 👉 Escuchar en el puerto que asigne Render o el 3000 por defecto
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
+  
+  console.log(`🚀 Backend running on port ${port}`);
 }
 bootstrap();
