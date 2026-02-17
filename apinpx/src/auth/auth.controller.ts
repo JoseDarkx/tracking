@@ -37,6 +37,24 @@ export class AuthController {
     return this.authService.register(nombre, email, password, role);
   }
 
+  // Agrega estas rutas dentro de la clase AuthController
+
+  // 📊 LISTAR TODOS LOS USUARIOS (SOLO ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Get('admin/users')
+  async findAllUsers() {
+    return this.authService.findAll();
+  }
+
+  // 🗑️ ELIMINAR USUARIO (SOLO ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('admin/delete-user/:id') // Usamos Post o Delete según prefieras
+  async deleteUser(@Param('id') id: string) {
+    return this.authService.remove(id);
+  }
+
   // 🔑 CAMBIAR PASSWORD (SOLO ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')

@@ -4,6 +4,11 @@
    ============================================ */
 
 /* ===== CSS VARIABLES ===== */
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   /* Colors - Professional Blue Palette */
   --primary: #2563eb;
@@ -11,6 +16,9 @@
   --primary-light: #dbeafe;
   --secondary: #64748b;
   --accent: #0ea5e9;
+  --font-body: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace; /* Para códigos y números técnicos */
+
   
   /* Neutrals */
   --gray-50: #f8fafc;
@@ -135,7 +143,7 @@ a {
   top: 0;
   z-index: 100;
   backdrop-filter: blur(12px);
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.9); /* color navbar */
 }
 
 .navbar-brand {
@@ -980,33 +988,74 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Enterprise gradient: charcoal -> deep red -> light neutral */
-  background: linear-gradient(165deg,
-    rgb(29,29,27) 0%,        /* negro */
-    rgb(184,19,19) 40%,      /* rojo (acento) */
-    rgb(239,239,239) 100%    /* gris claro */
+  
+  /* Gradiente animado: ahora los colores se desplazan */
+  background: linear-gradient(-45deg, 
+    rgb(20, 20, 20), 
+    rgb(154, 0, 0), 
+    rgb(29, 29, 27), 
+    rgb(184, 19, 19)
   );
+  
+  /* Hacemos el fondo más grande que la pantalla para que tenga espacio para moverse */
+  background-size: 400% 400%;
+  
+  /* Aplicamos la animación de 15 segundos (puedes subirlo a 30s para que sea más lento) */
+  animation: gradientMovement 15s ease infinite;
+  
   padding: var(--spacing-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Efecto opcional: Un resplandor sutil que se mueve detrás del card */
+.login-container::after {
+  content: '';
+  position: absolute;
+  width: 50vmax;
+  height: 50vmax;
+  background: rgba(184, 19, 19, 0.1);
+  filter: blur(100px);
+  border-radius: 50%;
+  z-index: 0;
+  animation: pulseResplandor 10s infinite alternate;
 }
 
 .login-card {
-  background: var(--bg-primary);
+  background: rgba(255, 255, 255, 0.95); /* Un toque de transparencia */
+  backdrop-filter: blur(10px);           /* Efecto cristal esmerilado */
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
   width: 100%;
   max-width: 440px;
   padding: var(--spacing-2xl);
   animation: slideUp 0.4s ease;
+  z-index: 1; /* Para que esté por encima del resplandor */
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-@keyframes slideUp {
+/* ===== NUEVAS ANIMACIONES ===== */
+
+/* Animación principal del fondo */
+@keyframes gradientMovement {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Animación del resplandor de fondo */
+@keyframes pulseResplandor {
   from {
-    opacity: 0;
-    transform: translateY(20px);
+    transform: translate(-10%, -10%) scale(1);
   }
   to {
-    opacity: 1;
-    transform: translateY(0);
+    transform: translate(10%, 10%) scale(1.2);
   }
 }
 
@@ -1158,4 +1207,11 @@ a {
   .login-subtitle {
     font-size: 0.875rem;
   }
+}
+
+/* Agrega esto al final de todo el archivo */
+@keyframes gradientMovement {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }

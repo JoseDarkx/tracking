@@ -1,5 +1,6 @@
 // src/pages/Dashboard.tsx
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom'; // <--- IMPORTANTE
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
@@ -8,17 +9,17 @@ import {
   obtenerMetricas,
   construirUrlPublica,
   eliminarCotizacion,
-  getCurrentUser,
   type Cotizacion,
   type MetricasDashboard,
   type PaginationInfo,
-  type User,
 } from '../services/api';
 
 const Dashboard = () => {
+  const [searchParams, setSearchParams] = useSearchParams(); // Hook para leer URL
+  const usuarioFiltrado = searchParams.get('usuario'); // Obtener ID del filtro
+
   const [metricas, setMetricas] = useState<MetricasDashboard | null>(null);
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo>({
     page: 1,
     limit: 10,
@@ -27,40 +28,45 @@ const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
 
-  // Modal state
   const [deleteModal, setDeleteModal] = useState({
     isOpen: false,
     cotizacionId: '',
     isLoading: false,
   });
 
-  // Form state
   const [codigo, setCodigo] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  // EFECTO PRINCIPAL: Se ejecuta al cambiar página o filtro
   useEffect(() => {
-    const user = getCurrentUser();
-    setCurrentUser(user);
+   // const user = getCurrentUser();
+   // setCurrentUser(user);
     cargarDatos();
-  }, [pagination.page]);
+  }, [pagination.page, usuarioFiltrado]); // <--- Agregado usuarioFiltrado
 
   const cargarDatos = async () => {
     try {
       setLoading(true);
+      
+      // Si hay un filtro, pasamos el ID, si no, undefined
+      const filtroId = usuarioFiltrado || undefined;
+
       const [metricasData, cotizacionesResponse] = await Promise.all([
         obtenerMetricas(),
-        listarCotizaciones(pagination.page, 10),
+        listarCotizaciones(pagination.page, 10, filtroId), // <--- Pasamos el filtro aquí
       ]);
-
-      // Proteger de undefined en metricasData.visitasPorCotizacion
-      if (!metricasData?.visitasPorCotizacion) {
-        metricasData.visitasPorCotizacion = [];
-      }
 
       setMetricas(metricasData);
       setCotizaciones(cotizacionesResponse.data);
       setPagination(cotizacionesResponse.pagination);
+      
+      // Feedback visual si se aplicó filtro
+      if (filtroId && cotizacionesResponse.data.length > 0) {
+        toast.dismiss(); // Limpiar otros toasts
+        // Opcional: toast.success('Filtro de usuario aplicado');
+      }
+
     } catch (error) {
       toast.error('Error al cargar datos');
       console.error(error);
@@ -82,22 +88,21 @@ const Dashboard = () => {
 
       toast.success('¡Cotización creada exitosamente!');
 
-      // El backend devuelve { ok, cotizacion, publicUrl }
       const link = result.publicUrl;
       navigator.clipboard.writeText(link);
       toast.success('Link copiado al portapapeles');
 
-      // Reset form
       setCodigo('');
       setPdfFile(null);
 
-      // Limpiar el input file
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
 
-      // Recargar datos - volver a página 1
+      // Al crear, volvemos a la página 1 y quitamos filtros para ver la nueva
+      if (usuarioFiltrado) setSearchParams({});
       setPagination(prev => ({ ...prev, page: 1 }));
-      await cargarDatos();
+      
+      // cargarDatos se llamará automáticamente por el cambio de dependencias
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Error al crear cotización');
       console.error(error);
@@ -158,6 +163,12 @@ const Dashboard = () => {
     });
   };
 
+  // Función para limpiar el filtro
+  const limpiarFiltro = () => {
+    setSearchParams({}); // Elimina los parámetros de la URL
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -169,7 +180,6 @@ const Dashboard = () => {
 
   return (
     <>
-      {/* Header */}
       <div className="page-header">
         <h1 className="page-title">Dashboard</h1>
         <p className="page-description">
@@ -177,7 +187,6 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* Stats Cards */}
       {metricas && (
         <div className="stats-grid">
           <div className="stat-card">
@@ -202,9 +211,7 @@ const Dashboard = () => {
           <div className="stat-card">
             <div className="stat-label">Más Vista</div>
             <div className="stat-value">
-              {(metricas?.visitasPorCotizacion?.length ?? 0) > 0
-                ? Math.max(...(metricas.visitasPorCotizacion?.map(v => v.visitas) ?? [0]))
-                : 0}
+              {metricas.masVista ?? 0}
             </div>
           </div>
         </div>
@@ -268,20 +275,39 @@ const Dashboard = () => {
 
       {/* Lista de Cotizaciones */}
       <div className="list-container">
-        <div className="list-header">
-          <h2 className="list-title">Cotizaciones Activas</h2>
-          <span className="badge badge-neutral">
-            {cotizaciones.length} total
-          </span>
+        <div className="list-header flex justify-between items-center">
+          <div>
+            <h2 className="list-title">Cotizaciones {usuarioFiltrado ? 'Filtradas' : 'Activas'}</h2>
+            <div className="flex gap-2 mt-1">
+              <span className="badge badge-neutral">
+                {cotizaciones.length} en esta página
+              </span>
+              {/* BADGE DE FILTRO ACTIVO */}
+              {usuarioFiltrado && (
+                <span className="badge badge-primary flex items-center gap-1 cursor-pointer" onClick={limpiarFiltro} title="Clic para quitar filtro">
+                  Filtro activo ✕
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         {cotizaciones.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">📄</div>
-            <h3 className="empty-state-title">No hay cotizaciones aún</h3>
+            <h3 className="empty-state-title">
+              {usuarioFiltrado ? 'No se encontraron cotizaciones para este usuario' : 'No hay cotizaciones aún'}
+            </h3>
             <p className="empty-state-description">
-              Comienza subiendo tu primer PDF para crear un link rastreable
+              {usuarioFiltrado 
+                ? 'Intenta seleccionar otro usuario o quita el filtro.' 
+                : 'Comienza subiendo tu primer PDF para crear un link rastreable'}
             </p>
+            {usuarioFiltrado && (
+              <button className="btn btn-secondary mt-4" onClick={limpiarFiltro}>
+                Ver todas las cotizaciones
+              </button>
+            )}
           </div>
         ) : (
           cotizaciones.map((cot) => (
@@ -312,7 +338,6 @@ const Dashboard = () => {
                   <span className="list-item-meta-item">
                     📅 {formatearFecha(cot.created_at)}
                   </span>
-                  {/* Email del asesor oculto por privacidad; sólo se muestra el nombre */}
                   <span className="badge badge-success">Activo</span>
                 </div>
               </div>

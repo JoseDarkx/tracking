@@ -158,6 +158,28 @@ export class AuthService {
     return this.login(user);
   }
 
+  // 1. Listar todos los usuarios
+async findAll() {
+  const { data, error } = await this.supabase.client
+    .from('usuarios')
+    .select('id, nombre, email, role, created_at')
+    .order('nombre', { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+// 2. Eliminar un usuario por ID
+async remove(id: string) {
+  const { error } = await this.supabase.client
+    .from('usuarios')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+  return { message: 'Usuario eliminado correctamente' };
+}
+
   // ===============================
   // 🔍 VERIFICAR TOKEN
   // ===============================

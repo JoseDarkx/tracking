@@ -31,7 +31,7 @@ interface UserPayload {
 @Controller('api')
 @UseGuards(JwtAuthGuard, RolesGuard) // 👈 Proteger todas las rutas
 export class CotizacionesController {
-  constructor(private readonly service: CotizacionesService) {}
+  constructor(private readonly service: CotizacionesService) { }
 
   // ======================================================
   // 🔒 RUTAS PARA ADMINISTRADORES
@@ -63,6 +63,20 @@ export class CotizacionesController {
   @Roles('admin')
   obtenerEstadisticasGlobales() {
     return this.service.obtenerEstadisticasGlobales();
+  }
+
+  // 📊 Estadísticas por empleado (SOLO ADMIN)
+  @Get('admin/estadisticas/empleados')
+  @Roles('admin')
+  obtenerEstadisticasEmpleados() {
+    return this.service.obtenerEstadisticasEmpleados();
+  }
+
+  // 📊 Top cotizaciones más vistas (SOLO ADMIN)
+  @Get('admin/estadisticas/top-vistas')
+  @Roles('admin')
+  obtenerTopVistas() {
+    return this.service.obtenerCotizacionesMasVistas();
   }
 
   // ======================================================
@@ -127,7 +141,7 @@ export class CotizacionesController {
 // ======================================================
 @Controller()
 export class PublicController {
-  constructor(private readonly service: CotizacionesService) {}
+  constructor(private readonly service: CotizacionesService) { }
 
   @Get('c/:slug')
   async abrirPdf(
@@ -135,7 +149,7 @@ export class PublicController {
     @Req() req: Request,
   ) {
     const data = await this.service.abrirConTracking(slug, req);
-    
+
     if (!data) {
       throw new NotFoundException('Cotización no encontrada');
     }

@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Dashboard from './pages/dashboard';
 import Login from './pages/Login';
 import AdminCreateUser from './pages/AdminCreateUser';
+import AdminDashboard from './pages/AdminDashboard';
 import PublicView from './pages/PublicView';
 
 function App() {
@@ -53,6 +54,17 @@ function App() {
             <ProtectedRoute>
               <PrivateLayout>
                 <AdminCreateUser />
+              </PrivateLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute>
+              <PrivateLayout>
+                <AdminDashboard />
               </PrivateLayout>
             </ProtectedRoute>
           }

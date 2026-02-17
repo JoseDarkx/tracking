@@ -16,10 +16,18 @@ const PublicView = () => {
   useEffect(() => {
     const fetchCotizacion = async () => {
       if (!slug) return;
-      
+
       try {
         console.log('🔍 Cargando cotización:', slug);
-        const backendUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+        let backendUrl = 'http://localhost:3000';
+        try {
+          if (import.meta.env.VITE_API_URL) {
+            const url = new URL(import.meta.env.VITE_API_URL);
+            backendUrl = url.origin;
+          }
+        } catch (e) {
+          console.warn('Error parsing VITE_API_URL, using default', e);
+        }
         const response = await axios.get(`${backendUrl}/c/${slug}`);
         console.log('✅ Datos recibidos:', response.data);
         setData(response.data);
@@ -36,10 +44,10 @@ const PublicView = () => {
 
   if (loading) {
     return (
-      <div style={{ 
-        height: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)',
         color: 'white',
@@ -64,10 +72,10 @@ const PublicView = () => {
 
   if (error || !data) {
     return (
-      <div style={{ 
-        height: '100vh', 
-        display: 'flex', 
-        alignItems: 'center', 
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)',
         color: 'white',
@@ -85,8 +93,8 @@ const PublicView = () => {
   }
 
   return (
-    <div style={{ 
-      height: '100vh', 
+    <div style={{
+      height: '100vh',
       width: '100vw',
       display: 'flex',
       flexDirection: 'column',
@@ -136,7 +144,7 @@ const PublicView = () => {
       </div>
 
       {/* PDF CONTAINER */}
-      <div style={{ 
+      <div style={{
         flex: 1,
         position: 'relative',
         overflow: 'hidden',

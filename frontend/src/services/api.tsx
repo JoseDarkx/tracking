@@ -58,6 +58,7 @@ export interface ListarCotizacionesResponse {
 export interface MetricasDashboard {
   totalCotizaciones: number;
   totalVisitas: number;
+  masVista: number;
   visitasPorCotizacion: Array<{
     codigo: string;
     visitas: number;
@@ -128,6 +129,16 @@ export const adminCreateUser = async (
 
 export const createUser = adminCreateUser;
 
+export const getAllUsers = async (): Promise<User[]> => {
+  const response = await api.get('/auth/admin/users');
+  return response.data;
+};
+
+export const deleteUser = async (id: string) => {
+  const response = await api.post(`/auth/admin/delete-user/${id}`);
+  return response.data;
+};
+
 export const adminChangePasswordByEmail = async (
   email: string,
   newPassword: string,
@@ -164,9 +175,11 @@ export const getCurrentUser = (): User | null => {
 export const listarCotizaciones = async (
   page: number = 1,
   limit: number = 10,
+  userId?: string // <--- Agregamos este parámetro opcional
 ): Promise<ListarCotizacionesResponse> => {
   const response = await api.get('/cotizaciones', {
-    params: { page, limit },
+    // Agregamos userId a los parámetros de la consulta
+    params: { page, limit, userId }, 
   });
   return response.data;
 };
@@ -195,6 +208,20 @@ export const eliminarCotizacion = async (cotizacionId: string) => {
 
 export const obtenerMetricas = async (): Promise<MetricasDashboard> => {
   const response = await api.get('/metricas');
+  return response.data;
+};
+
+export const obtenerEstadisticasEmpleados = async (): Promise<
+  Array<{ id: string; nombre: string; cotizaciones: number }>
+> => {
+  const response = await api.get('/admin/estadisticas/empleados');
+  return response.data;
+};
+
+export const obtenerTopCotizaciones = async (): Promise<
+  Array<{ name: string; value: number }>
+> => {
+  const response = await api.get('/admin/estadisticas/top-vistas');
   return response.data;
 };
 

@@ -15,13 +15,22 @@ const Sidebar = () => {
 
         {/* SOLO ADMIN */}
         {user?.role === 'admin' && (
-          <Link
-            to="/admin/usuarios"
-            className={location.pathname === '/admin/usuarios' ? 'active' : ''}
-          >
-            <span className="sidebar-nav-icon">👤</span>
-            <span>Crear usuario</span>
-          </Link>
+          <>
+            <Link
+              to="/admin/dashboard"
+              className={location.pathname === '/admin/dashboard' ? 'active' : ''}
+            >
+              <span className="sidebar-nav-icon">📈</span>
+              <span>Estadísticas</span>
+            </Link>
+            <Link
+              to="/admin/usuarios"
+              className={location.pathname === '/admin/usuarios' ? 'active' : ''}
+            >
+              <span className="sidebar-nav-icon">👤</span>
+              <span>Crear usuario</span>
+            </Link>
+          </>
         )}
       </nav>
     </aside>
