@@ -229,8 +229,7 @@ export const obtenerTopCotizaciones = async (): Promise<
 // 🌐 PUBLIC URL
 // ===============================
 export const construirUrlPublica = (slug: string): string => {
-  const baseUrl =
-    import.meta.env.VITE_PUBLIC_URL || 'http://localhost:5173';
+  const baseUrl = window.location.origin; // Obtiene el origen actual (protocolo + host + puerto)
   return `${baseUrl}/c/${slug}`;
 };
 
