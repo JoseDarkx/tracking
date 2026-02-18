@@ -16,12 +16,12 @@ import {
 
 const Dashboard = () => {
   // --- ESTADOS Y LÓGICA (Igual que antes) ---
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, ] = useSearchParams();
   const usuarioFiltrado = searchParams.get('usuario');
   const [metricas, setMetricas] = useState<MetricasDashboard | null>(null);
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 10, total: 0, pages: 0 });
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [codigo, setCodigo] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
