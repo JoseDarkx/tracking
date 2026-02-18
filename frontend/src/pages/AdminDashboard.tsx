@@ -1,170 +1,197 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
-    PieChart, Pie
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  PieChart, Pie, Legend
 } from 'recharts';
-import { obtenerEstadisticasEmpleados, obtenerTopCotizaciones } from '../services/api'; //
+import { obtenerEstadisticasEmpleados, obtenerTopCotizaciones, getCurrentUser } from '../services/api';
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
-    const navigate = useNavigate();
-    const [data, setData] = useState<Array<{ id: string; nombre: string; cotizaciones: number }>>([]);
-    const [donutData, setDonutData] = useState<Array<{ name: string; value: number }>>([]);
-    const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const [data, setData] = useState<Array<{ id: string; nombre: string; cotizaciones: number }>>([]);
+  const [donutData, setDonutData] = useState<Array<{ name: string; value: number }>>([]);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                // Ejecución en paralelo de ambas fuentes de datos reales
-                const [statsEmpleados, statsVistas] = await Promise.all([
-                    obtenerEstadisticasEmpleados(),
-                    obtenerTopCotizaciones()
-                ]);
+  const user = getCurrentUser();
+  const userDisplay = { nombre: user?.nombre || 'Admin', rol: 'Administrador' };
 
-                setData(statsEmpleados);
-                setDonutData(statsVistas);
-            } catch (error) {
-                toast.error('Error al cargar estadísticas');
-                console.error(error);
-                setDonutData([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, []);
-
-    // Redirección al hacer clic en una barra específica
-    const handleBarClick = (data: any) => {
-        if (data && data.activePayload && data.activePayload.length > 0) {
-            const empleadoId = data.activePayload[0].payload.id;
-            const nombre = data.activePayload[0].payload.nombre;
-            
-            navigate(`/?usuario=${empleadoId}`); 
-            toast.success(`Filtrando por: ${nombre}`);
-        }
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [statsEmpleados, statsVistas] = await Promise.all([
+          obtenerEstadisticasEmpleados(),
+          obtenerTopCotizaciones()
+        ]);
+        setData(statsEmpleados);
+        setDonutData(statsVistas);
+      } catch (error) {
+        toast.error('Error al cargar estadísticas');
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
     };
+    fetchData();
+  }, []);
 
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-        );
+  const handleBarClick = (data: any) => {
+    if (data && data.activePayload && data.activePayload.length > 0) {
+      const empleadoId = data.activePayload[0].payload.id;
+      const nombre = data.activePayload[0].payload.nombre;
+      navigate(`/dashboard?usuario=${empleadoId}`);
+      toast.success(`Filtrando por: ${nombre}`);
     }
+  };
 
-    const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088FE', '#00C49F'];
-    const donutColors = ['#0ea5e9', '#2563eb', '#64748b', '#94a3b8', '#334155'];
+  const colors = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe'];
+  const donutColors = ['#0ea5e9', '#2563eb', '#64748b', '#94a3b8', '#334155'];
 
-    return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-gray-800">Dashboard Administrativo</h1>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* Gráfico de Barras: Rendimiento por Empleado */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 col-span-2">
-                    <h2 className="text-lg font-semibold mb-4 text-gray-700">
-                        Rendimiento de Empleados (Click en barra para filtrar)
-                    </h2>
-                    {data.length > 0 ? (
-                        <div style={{ width: '100%', height: 400 }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart
-                                    data={data}
-                                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                                    onClick={handleBarClick}
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="nombre" />
-                                    <YAxis allowDecimals={false} />
-                                    <Tooltip 
-                                        cursor={{ fill: '#f3f4f6' }}
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                    />
-                                    <Legend />
-                                    <Bar dataKey="cotizaciones" name="Total Cotizaciones" radius={[4, 4, 0, 0]}>
-                                        {data.map((_, index) => (
-                                            <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    ) : (
-                        <div className="h-[400px] flex items-center justify-center text-gray-400">
-                            No hay datos de rendimiento disponibles.
-                        </div>
-                    )}
-                </div>
-
-                {/* Lista de Top Empleados */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 col-span-2 md:col-span-1">
-                    <h2 className="text-lg font-semibold mb-4 text-gray-700">Ranking de Asesores</h2>
-                    <div className="space-y-4">
-                        {data.slice(0, 5).map((empleado, index) => (
-                            <div 
-                                key={empleado.id} 
-                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                                onClick={() => navigate(`/?usuario=${empleado.id}`)}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
-                                        index === 0 ? 'bg-yellow-400' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-400' : 'bg-blue-400'
-                                    }`}>
-                                        {index + 1}
-                                    </div>
-                                    <span className="font-medium text-gray-700">{empleado.nombre}</span>
-                                </div>
-                                <div className="text-primary font-bold">
-                                    {empleado.cotizaciones} <span className="text-xs text-gray-500 font-normal">cots</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Gráfico de Dona: Cotizaciones más vistas */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 col-span-2 md:col-span-1">
-                    <h2 className="text-lg font-semibold mb-4 text-gray-700">Cotizaciones con más Tráfico</h2>
-                    {donutData.length > 0 ? (
-                        <div style={{ width: '100%', height: 300 }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={donutData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={90}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                    >
-                                        {donutData.map((_, index) => (
-                                            <Cell key={`cell-${index}`} fill={donutColors[index % donutColors.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip formatter={(value) => [`${value} visitas`, 'Total']} />
-                                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-                    ) : (
-                        <div className="h-[300px] flex flex-col items-center justify-center text-gray-400 gap-2">
-                            <p>Aún no hay registros de visitas.</p>
-                            <span className="text-xs">Las vistas aparecerán aquí cuando los clientes abran los PDFs.</span>
-                        </div>
-                    )}
-                </div>
-
-            </div>
+  return (
+    <div className="app-container">
+      
+      {/* 1. PORTADA AZUL */}
+      <div className="cover-header">
+        <div style={{color: 'white', fontSize: '2rem', fontWeight: 700, opacity: 0.9}}>
+           Estadísticas Globales
         </div>
-    );
+      </div>
+
+      {/* 2. GRID PRINCIPAL */}
+      <div className="dashboard-container">
+
+        {/* --- COLUMNA IZQUIERDA (SIDEBAR) --- */}
+        <div>
+          <div className="card-box profile-card">
+            <div className="profile-avatar">{userDisplay.nombre.charAt(0)}</div>
+            <div className="profile-name">{userDisplay.nombre}</div>
+            <div className="profile-role">{userDisplay.rol}</div>
+          </div>
+
+          <div className="card-box nav-card">
+            <div className="nav-title">Menú Administrativo</div>
+            <Link to="/dashboard" className="nav-link">📊 Dashboard General</Link>
+            <Link to="/admin/dashboard" className="nav-link active">📈 Estadísticas</Link>
+            <Link to="/admin/usuarios" className="nav-link">👤 Gestión de Usuarios</Link>
+          </div>
+        </div>
+
+        {/* --- COLUMNA DERECHA (GRÁFICOS) --- */}
+        {/* 👇 AQUÍ ESTÁ EL ARREGLO: width: '100%' 👇 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
+            
+            {loading ? (
+               <div className="card-box" style={{padding: '40px', textAlign: 'center', color:'#94a3b8'}}>
+                  Cargando métricas en tiempo real...
+               </div>
+            ) : (
+               <>
+                 {/* GRÁFICO PRINCIPAL: BARRAS */}
+                 <div className="card-box" style={{ padding: '24px' }}>
+                    <div className="section-title" style={{justifyContent: 'space-between'}}>
+                        <span>Rendimiento de Equipo</span>
+                        <span style={{fontSize:'0.75rem', fontWeight:'normal', color:'#64748b', background:'#f1f5f9', padding:'4px 10px', borderRadius:'20px'}}>
+                           🖱️ Click en una barra para ver detalles
+                        </span>
+                    </div>
+                    
+                    <div style={{ width: '100%', height: 400 }}>
+                       <ResponsiveContainer>
+                          <BarChart data={data} onClick={handleBarClick} style={{ cursor: 'pointer' }}>
+                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0"/>
+                             <XAxis dataKey="nombre" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                             <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                             <Tooltip 
+                                cursor={{ fill: '#eff6ff' }}
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                             />
+                             <Bar dataKey="cotizaciones" radius={[6, 6, 0, 0]} barSize={50}>
+                                {data.map((_, index) => (
+                                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                                ))}
+                             </Bar>
+                          </BarChart>
+                       </ResponsiveContainer>
+                    </div>
+                 </div>
+
+                 {/* FILA INFERIOR: RANKING Y DONA */}
+                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+                    
+                    {/* Ranking List */}
+                    <div className="card-box list-card">
+                       <div className="list-header">
+                          <h3>🏆 Top Asesores</h3>
+                       </div>
+                       <div>
+                          {data.length === 0 ? (
+                             <div style={{padding:'20px', textAlign:'center', color:'#94a3b8'}}>Sin datos aún</div>
+                          ) : (
+                             data.sort((a,b) => b.cotizaciones - a.cotizaciones).slice(0, 5).map((emp, i) => (
+                                <div 
+                                   key={emp.id} 
+                                   className="list-row" 
+                                   onClick={() => navigate(`/dashboard?usuario=${emp.id}`)}
+                                   style={{cursor: 'pointer'}}
+                                >
+                                   <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
+                                      <div style={{
+                                         width:'32px', height:'32px', borderRadius:'8px', 
+                                         background: i===0?'#fbbf24':i===1?'#94a3b8':i===2?'#fb923c':'#f1f5f9',
+                                         color: i<3?'white':'#64748b', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'700'
+                                      }}>
+                                         {i+1}
+                                      </div>
+                                      <div style={{fontWeight:600, color:'#334155'}}>{emp.nombre}</div>
+                                   </div>
+                                   <div style={{textAlign:'right'}}>
+                                      <span style={{display:'block', fontWeight:'bold', color:'#2563eb', fontSize:'1.1rem'}}>{emp.cotizaciones}</span>
+                                      <span style={{fontSize:'0.65rem', color:'#94a3b8', textTransform:'uppercase'}}>Cots</span>
+                                   </div>
+                                </div>
+                             ))
+                          )}
+                       </div>
+                    </div>
+
+                    {/* Gráfico de Dona */}
+                    <div className="card-box" style={{ padding: '24px' }}>
+                       <h3 className="section-title">Tráfico por Cotización</h3>
+                       {donutData.length > 0 ? (
+                          <div style={{ width: '100%', height: 300 }}>
+                             <ResponsiveContainer>
+                                <PieChart>
+                                   <Pie
+                                      data={donutData}
+                                      innerRadius={60}
+                                      outerRadius={90}
+                                      paddingAngle={5}
+                                      dataKey="value"
+                                   >
+                                      {donutData.map((_, index) => (
+                                         <Cell key={`cell-${index}`} fill={donutColors[index % donutColors.length]} />
+                                      ))}
+                                   </Pie>
+                                   <Tooltip />
+                                   <Legend verticalAlign="bottom" height={36}/>
+                                </PieChart>
+                             </ResponsiveContainer>
+                          </div>
+                       ) : (
+                          <div style={{height:'300px', display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8', flexDirection:'column', gap:'10px'}}>
+                             <span style={{fontSize:'2rem'}}>📉</span>
+                             <p>No hay visitas registradas todavía</p>
+                          </div>
+                       )}
+                    </div>
+                 </div>
+               </>
+            )}
+        </div>
+
+      </div>
+    </div>
+  );
 };
 
 export default AdminDashboard;

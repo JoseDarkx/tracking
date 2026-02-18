@@ -2,26 +2,24 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 
 import Navbar from './components/Navbar';
-import Sidebar from './components/Sidebar';
+// import Sidebar from './components/Sidebar'; <--- YA NO LO NECESITAMOS
 import ProtectedRoute from './components/ProtectedRoute';
 
-import Dashboard from './pages/dashboard';
+import Dashboard from './pages/dashboard'; // Asegúrate de que coincida mayúscula/minúscula con tu archivo real
 import Login from './pages/Login';
 import AdminCreateUser from './pages/AdminCreateUser';
 import AdminDashboard from './pages/AdminDashboard';
 import PublicView from './pages/PublicView';
 
 function App() {
+  // 👇 LAYOUT LIMPIO: Solo Navbar arriba y contenido ancho completo
   const PrivateLayout = ({ children }: { children: React.ReactNode }) => (
-    <>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Navbar />
-      <div className="app">
-        <Sidebar />
-        <main className="main">
-          <div className="main-container">{children}</div>
-        </main>
-      </div>
-    </>
+      <main className="flex-1 w-full">
+        {children}
+      </main>
+    </div>
   );
 
   return (
@@ -53,7 +51,10 @@ function App() {
           element={
             <ProtectedRoute>
               <PrivateLayout>
-                <AdminCreateUser />
+                {/* Agregamos un contenedor para que no se pegue a los bordes en estas pantallas */}
+                <div className="max-w-7xl mx-auto px-4 py-6">
+                   <AdminCreateUser />
+                </div>
               </PrivateLayout>
             </ProtectedRoute>
           }
@@ -64,7 +65,9 @@ function App() {
           element={
             <ProtectedRoute>
               <PrivateLayout>
-                <AdminDashboard />
+                 <div className="max-w-7xl mx-auto px-4 py-6">
+                    <AdminDashboard />
+                 </div>
               </PrivateLayout>
             </ProtectedRoute>
           }

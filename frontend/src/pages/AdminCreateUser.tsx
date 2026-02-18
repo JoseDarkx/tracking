@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { 
   createUser, 
@@ -6,56 +7,51 @@ import {
   getCurrentUser, 
   getAllUsers, 
   deleteUser,
-  // CORRECCIÓN: Importamos como 'type' para evitar el error de consola
   type User 
 } from '../services/api';
 
 const AdminCreateUser = () => {
   const currentUser = getCurrentUser();
+  const userDisplay = { nombre: currentUser?.nombre || 'Admin', rol: 'Administrador' };
+
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   
-  // Estados para el control de la interfaz
+  // Estados de control
   const [showForm, setShowForm] = useState(false);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
   
-  // Estados del formulario
+  // Formulario
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'employee'>('employee');
   const [loading, setLoading] = useState(false);
 
-  // Cargar lista de usuarios al inicio
   const fetchUsers = async () => {
     try {
       setLoadingUsers(true);
       const data = await getAllUsers();
       setUsers(data);
     } catch (error) {
-      toast.error('Error al cargar la lista de usuarios');
+      toast.error('Error al cargar usuarios');
     } finally {
       setLoadingUsers(false);
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  useEffect(() => { fetchUsers(); }, []);
 
-  // Función principal para Crear o Editar
   const handleAction = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setLoading(true);
       if (editingEmail) {
-        // MODO EDICIÓN: Solo actualiza la contraseña
         await adminChangePasswordByEmail(editingEmail, password);
-        toast.success('Contraseña actualizada con éxito');
+        toast.success('Contraseña actualizada');
       } else {
-        // MODO CREACIÓN: Crea usuario completo
         await createUser({ nombre, email, password, role });
-        toast.success('Usuario creado correctamente');
+        toast.success('Usuario creado');
       }
       resetForm();
       fetchUsers();
@@ -69,162 +65,171 @@ const AdminCreateUser = () => {
   const resetForm = () => {
     setShowForm(false);
     setEditingEmail(null);
-    setNombre('');
-    setEmail('');
-    setPassword('');
-    setRole('employee');
+    setNombre(''); setEmail(''); setPassword(''); setRole('employee');
   };
 
-  // ESTA ES LA FUNCIÓN QUE ABRE EL EDITOR
   const openEdit = (user: User) => {
-    console.log("Editando usuario:", user.email); // Para que verifiques en consola
     setEditingEmail(user.email);
     setNombre(user.nombre);
     setEmail(user.email);
-    setPassword(''); // Limpiamos el campo de password para la nueva
+    setPassword('');
     setShowForm(true);
-    
-    // Subir al inicio para ver el formulario
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`¿Estás seguro de eliminar permanentemente a ${name}?`)) return;
+    if (!window.confirm(`¿Eliminar a ${name}?`)) return;
     try {
       await deleteUser(id);
-      toast.success('Usuario eliminado');
+      toast.success('Eliminado');
       fetchUsers();
-    } catch (error) {
-      toast.error('No se pudo eliminar el usuario');
-    }
+    } catch (error) { toast.error('Error al eliminar'); }
   };
 
-  // Protección de ruta
   if (currentUser?.role !== 'admin') {
-    return <div className="page-header"><h1>No tienes permisos de administrador</h1></div>;
+    return <div style={{padding:'40px', textAlign:'center'}}>⛔ Acceso Denegado</div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="page-header flex justify-between items-center">
-        <div>
-          <h1 className="page-title">Administración de Usuarios</h1>
-          <p className="page-description">Gestiona los accesos y contraseñas del equipo</p>
+    <div className="app-container">
+      
+      {/* 1. PORTADA AZUL */}
+      <div className="cover-header">
+         {/* Ajustamos el texto para que quede arriba y no choque */}
+         <div style={{color: 'white', fontSize: '2rem', fontWeight: 700, opacity: 0.9}}>
+           Gestión de Usuarios
         </div>
-        <button 
-          className={`btn ${showForm ? 'btn-secondary' : 'btn-primary'}`} 
-          onClick={() => showForm ? resetForm() : setShowForm(true)}
-        >
-          {showForm ? 'Cerrar Formulario' : 'Crear Nuevo Usuario'}
-        </button>
       </div>
 
-      {/* FORMULARIO DINÁMICO (CREAR / EDITAR) */}
-      {showForm && (
-        <div className="form-section shadow-lg border-primary/20 border">
-          <h2 className="text-primary">
-            {editingEmail ? `Restablecer contraseña de: ${nombre}` : 'Registrar nuevo usuario'}
-          </h2>
-          <form onSubmit={handleAction} className="mt-4">
-            {!editingEmail && (
-              <div className="form-group">
-                <label className="form-label">Nombre Completo</label>
-                <input className="form-input" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
-              </div>
-            )}
-            {!editingEmail && (
-              <div className="form-group">
-                <label className="form-label">Correo Electrónico</label>
-                <input className="form-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-            )}
-            <div className="form-group">
-              <label className="form-label">
-                {editingEmail ? 'Nueva Contraseña' : 'Contraseña de acceso'}
-              </label>
-              <input 
-                className="form-input" 
-                type="password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                required 
-                minLength={6} 
-                placeholder="Mínimo 6 caracteres"
-              />
-            </div>
-            {!editingEmail && (
-              <div className="form-group">
-                <label className="form-label">Rol del sistema</label>
-                <select className="form-input" value={role} onChange={(e) => setRole(e.target.value as any)}>
-                  <option value="employee">Empleado</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </div>
-            )}
-            <div className="flex gap-4 mt-6">
-              <button className="btn btn-primary btn-lg flex-1" disabled={loading}>
-                {loading ? 'Guardando...' : editingEmail ? 'Actualizar Contraseña' : 'Crear Usuario'}
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={resetForm}>Cancelar</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* TABLA DE USUARIOS */}
-      <div className="list-container bg-white shadow-sm rounded-xl overflow-hidden">
-        <div className="p-4 border-b bg-gray-50">
-          <h2 className="font-bold text-gray-700">Equipo Registrado</h2>
-        </div>
+      {/* 2. ESTRUCTURA PRINCIPAL */}
+      <div className="dashboard-container">
         
-        {loadingUsers ? (
-          <div className="p-10 text-center text-gray-500">Cargando lista de usuarios...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-sm text-gray-500 border-b">
-                  <th className="p-4 font-semibold">Nombre</th>
-                  <th className="p-4 font-semibold">Email</th>
-                  <th className="p-4 font-semibold">Rol</th>
-                  <th className="p-4 text-right font-semibold">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b last:border-none hover:bg-gray-50/50 transition-colors">
-                    <td className="p-4">
-                      <div className="font-medium text-gray-900">{u.nombre}</div>
-                    </td>
-                    <td className="p-4 text-gray-600">{u.email}</td>
-                    <td className="p-4">
-                      <span className={`badge ${u.role === 'admin' ? 'badge-primary' : 'badge-neutral'}`}>
-                        {u.role === 'admin' ? 'Admin' : 'Empleado'}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button 
-                          className="btn btn-sm btn-outline" 
-                          onClick={() => openEdit(u)} // <--- AQUÍ ESTÁ EL CLIC
-                        >
-                          Editar
-                        </button>
-                        <button 
-                          className="btn btn-sm btn-danger" 
-                          disabled={u.id === currentUser.id} 
-                          onClick={() => handleDelete(u.id, u.nombre)}
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* --- COLUMNA IZQUIERDA (SIDEBAR) --- */}
+        <div>
+          <div className="card-box profile-card">
+            <div className="profile-avatar">{userDisplay.nombre.charAt(0)}</div>
+            <div className="profile-name">{userDisplay.nombre}</div>
+            <div className="profile-role">{userDisplay.rol}</div>
           </div>
-        )}
+
+          <div className="card-box nav-card">
+            <div className="nav-title">Menú Administrativo</div>
+            <Link to="/dashboard" className="nav-link">📊 Dashboard General</Link>
+            <Link to="/admin/dashboard" className="nav-link">📈 Estadísticas</Link>
+            <Link to="/admin/usuarios" className="nav-link active">👤 Gestión de Usuarios</Link>
+          </div>
+        </div>
+
+        {/* --- COLUMNA DERECHA (CONTENIDO) --- */}
+        <div style={{ width: '100%' }}>
+          
+          {/* FORMULARIO (Solo aparece si showForm es true) */}
+          {showForm && (
+            <div className="card-box new-quote-card" style={{ marginBottom: '24px', animation: 'slideUp 0.3s ease' }}>
+              <div className="section-title">
+                 <span>{editingEmail ? '🔒 Cambiar Contraseña' : '👤 Registrar Nuevo Usuario'}</span>
+                 <button className="action-btn" onClick={resetForm} title="Cerrar">✕</button>
+              </div>
+              
+              <form onSubmit={handleAction} className="form-row">
+                {!editingEmail && (
+                  <div className="form-col">
+                    <label className="form-label">Nombre</label>
+                    <input className="input-field" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                  </div>
+                )}
+                {!editingEmail && (
+                  <div className="form-col">
+                    <label className="form-label">Email</label>
+                    <input className="input-field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  </div>
+                )}
+                <div className="form-col">
+                  <label className="form-label">{editingEmail ? 'Nueva Contraseña' : 'Contraseña'}</label>
+                  <input className="input-field" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+                </div>
+                {!editingEmail && (
+                  <div className="form-col">
+                    <label className="form-label">Rol</label>
+                    <select className="input-field" value={role} onChange={(e) => setRole(e.target.value as any)}>
+                      <option value="employee">Empleado</option>
+                      <option value="admin">Administrador</option>
+                    </select>
+                  </div>
+                )}
+                <div className="form-col" style={{display:'flex', alignItems:'flex-end'}}>
+                  <button className="btn-primary" style={{width:'100%'}} disabled={loading}>
+                     {loading ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* LISTA DE USUARIOS (El botón ahora está INTEGRADO aquí) */}
+          <div className="card-box list-card">
+             {/* HEADER DE LA LISTA: Aquí integramos el botón para evitar el conflicto visual */}
+             <div className="list-header">
+                <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
+                   <h3 style={{fontSize:'1.1rem'}}>Equipo Registrado</h3>
+                   <span className="badge-counter" style={{background:'#eff6ff', color:'#2563eb', fontWeight:'bold'}}>
+                     {users.length}
+                   </span>
+                </div>
+                
+                {/* Botón "Crear" movido aquí adentro */}
+                {!showForm && (
+                  <button 
+                    className="btn-primary" 
+                    onClick={() => setShowForm(true)}
+                    style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                  >
+                    + Nuevo Usuario
+                  </button>
+                )}
+             </div>
+
+             <div className="list-body">
+               {loadingUsers ? (
+                 <div style={{padding:'40px', textAlign:'center', color:'#94a3b8'}}>Cargando usuarios...</div>
+               ) : (
+                 users.map((u) => (
+                   <div key={u.id} className="list-row">
+                      <div className="quote-info">
+                         <h4 style={{fontSize:'1rem'}}>{u.nombre}</h4>
+                         <div className="quote-meta"><span>{u.email}</span></div>
+                      </div>
+
+                      <div style={{display:'flex', alignItems:'center', gap:'16px'}}>
+                         <span style={{
+                            fontSize:'0.7rem', fontWeight:'700', textTransform:'uppercase',
+                            padding:'4px 10px', borderRadius:'20px',
+                            background: u.role === 'admin' ? '#dbeafe' : '#f1f5f9',
+                            color: u.role === 'admin' ? '#2563eb' : '#64748b'
+                         }}>
+                            {u.role === 'admin' ? 'Admin' : 'Staff'}
+                         </span>
+
+                         <div className="quote-actions">
+                            <button className="action-btn" onClick={() => openEdit(u)} title="Editar">✏️</button>
+                            <button 
+                              className="action-btn delete" 
+                              onClick={() => handleDelete(u.id, u.nombre)} 
+                              disabled={u.id === currentUser?.id}
+                              style={{ opacity: u.id === currentUser?.id ? 0.3 : 1 }}
+                            >
+                              🗑️
+                            </button>
+                         </div>
+                      </div>
+                   </div>
+                 ))
+               )}
+             </div>
+          </div>
+
+        </div>
+
       </div>
     </div>
   );
