@@ -70,6 +70,7 @@ export interface User {
   email: string;
   nombre: string;
   role: 'admin' | 'employee';
+  avatarUrl?: string;
 }
 
 export interface LoginResponse {
@@ -242,5 +243,29 @@ export const obtenerCotizacionPublica = async (
   const response = await axios.get(`/c/${slug}`);
   return response.data;
 };
+// ===============================
+// 📸 PERFIL Y AVATAR
+// ===============================
+export const subirFotoPerfilAPI = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file); // 'file' será el nombre del campo que reciba NestJS
 
+  // Enviamos la imagen al backend (asumimos la ruta /auth/avatar)
+  const response = await api.post('/auth/avatar', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  // ✨ LA MAGIA: Actualizamos el localStorage para que la foto no se borre con F5
+  const userStr = localStorage.getItem('user');
+  if (userStr) {
+    const user = JSON.parse(userStr);
+    // Asignamos la nueva URL que nos devuelva el backend
+    user.avatarUrl = response.data.avatarUrl; 
+    localStorage.setItem('user', JSON.stringify(user));
+  }
+
+  return response.data;
+};
 export default api;

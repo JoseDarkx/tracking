@@ -12,6 +12,8 @@ import { LocalAuthGuard } from './local-auth.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { Roles } from './roles.decorator';
 import { RolesGuard } from './roles.guard';
+import {  UseInterceptors, UploadedFile, Req, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('api/auth')
 export class AuthController {
@@ -85,4 +87,25 @@ export class AuthController {
       user: req.user,
     };
   }
+
+  @UseGuards(JwtAuthGuard) // Esto asegura que solo usuarios logueados suban fotos
+  @Post('avatar')
+  @UseInterceptors(FileInterceptor('file')) // 'file' es el nombre que le dimos en el FormData de React
+  async uploadAvatar(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any
+  ) {
+    if (!file) {
+      throw new BadRequestException('No se recibió ningún archivo');
+    }
+
+    // Obtenemos el ID del usuario directamente del token decodificado
+    const userId = req.user.id; 
+    
+    // Llamamos al servicio para que haga el trabajo pesado
+    const avatarUrl = await this.authService.subirAvatar(userId, file);
+    
+    return { avatarUrl };
+  }
+
 }

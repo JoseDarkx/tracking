@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -9,27 +9,61 @@ import {
   construirUrlPublica,
   eliminarCotizacion,
   getCurrentUser,
+  subirFotoPerfilAPI,
   type Cotizacion,
-  type MetricasDashboard,
+  type MetricasDashboard, 
   type PaginationInfo,
 } from '../services/api';
 
 const Dashboard = () => {
-  // --- ESTADOS Y LÓGICA (Igual que antes) ---
+  // 1. OBTENER USUARIO (Se hace primero para poder usar sus datos en los estados)
+  const currentUser = getCurrentUser();
+  const userDisplay = { 
+    nombre: currentUser?.nombre || 'Usuario', 
+    rol: currentUser?.role === 'admin' ? 'Administrador' : 'Colaborador' 
+  };
+
+  // 2. ESTADOS GENERALES
   const [searchParams, ] = useSearchParams();
   const usuarioFiltrado = searchParams.get('usuario');
   const [metricas, setMetricas] = useState<MetricasDashboard | null>(null);
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 10, total: 0, pages: 0 });
   const [_loading, setLoading] = useState(true);
+  
+  // 3. ESTADOS Y LÓGICA DE LA FOTO DE PERFIL
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || "https://i.pravatar.cc/300?img=12");
+  
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Previsualización local inmediata
+    const localImageUrl = URL.createObjectURL(file);
+    setAvatarUrl(localImageUrl);
+    
+    // Aquí es donde conectarás tu API en el futuro
+     try {
+       toast.loading('Subiendo foto...', { id: 'upload' });
+       await subirFotoPerfilAPI(file); 
+       toast.success('Foto actualizada', { id: 'upload' });
+     } catch (error) {
+       toast.error('Error al subir', { id: 'upload' });
+    }
+  };
+
+  // 4. ESTADOS DEL FORMULARIO Y MODALES
   const [codigo, setCodigo] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, cotizacionId: '', isLoading: false });
 
-  const user = getCurrentUser();
-  const userDisplay = { nombre: user?.nombre || 'Usuario', rol: user?.role === 'admin' ? 'Administrador' : 'Colaborador' };
-
+  // 5. EFECTOS Y CARGA DE DATOS
   useEffect(() => { cargarDatos(); }, [pagination.page, usuarioFiltrado]);
 
   const cargarDatos = async () => {
@@ -42,7 +76,11 @@ const Dashboard = () => {
       setMetricas(metricasData);
       setCotizaciones(cotizacionesResponse.data);
       setPagination(cotizacionesResponse.pagination);
-    } catch (error) { toast.error('Error al cargar datos'); } finally { setLoading(false); }
+    } catch (error) { 
+      toast.error('Error al cargar datos'); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,7 +94,11 @@ const Dashboard = () => {
       setCodigo(''); setPdfFile(null);
       (document.getElementById('file-upload') as HTMLInputElement).value = '';
       setTimeout(() => cargarDatos(), 500);
-    } catch (error) { toast.error('Error al crear'); } finally { setUploading(false); }
+    } catch (error) { 
+      toast.error('Error al crear'); 
+    } finally { 
+      setUploading(false); 
+    }
   };
 
   const handleEliminar = async () => {
@@ -65,18 +107,20 @@ const Dashboard = () => {
       toast.success('Eliminado');
       setDeleteModal({ isOpen: false, cotizacionId: '', isLoading: false });
       cargarDatos();
-    } catch { toast.error('Error al eliminar'); }
+    } catch { 
+      toast.error('Error al eliminar'); 
+    }
   };
 
-  // --- RENDERIZADO VISUAL LIMPIO ---
+  // --- RENDERIZADO VISUAL ---
   return (
     <div className="app-container">
       
-      {/* 1. PORTADA AZUL */}
+      {/* 1. PORTADA ROJA/AZUL */}
       <div className="cover-header">
       </div>
 
-      {/* 2. GRID PRINCIPAL (IZQ: PERFIL | DER: CONTENIDO) */}
+      {/* 2. GRID PRINCIPAL */}
       <div className="dashboard-container">
         
         {/* --- COLUMNA IZQUIERDA --- */}
@@ -84,7 +128,30 @@ const Dashboard = () => {
           
           {/* Tarjeta de Perfil */}
           <div className="card-box profile-card">
-            <div className="profile-avatar">{userDisplay.nombre.charAt(0)}</div>
+            
+            {/* AVATAR EDITABLE */}
+            <div 
+              className="profile-avatar editable-avatar" 
+              onClick={handleAvatarClick}
+            >
+              <img 
+                src={avatarUrl} 
+                alt="Foto de perfil" 
+                className="profile-image" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+              />
+              <div className="avatar-overlay">
+                📷 Cambiar
+              </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                accept="image/*" 
+                style={{ display: 'none' }} 
+                onChange={handleAvatarChange} 
+              />
+            </div>
+
             <div className="profile-name">{userDisplay.nombre}</div>
             <div className="profile-role">{userDisplay.rol}</div>
             <div className="profile-stats">
@@ -103,7 +170,7 @@ const Dashboard = () => {
           <div className="card-box nav-card">
             <div className="nav-title">Menú Principal</div>
             <div className="nav-link active">📊 Dashboard</div>
-            {user?.role === 'admin' && (
+            {currentUser?.role === 'admin' && (
               <>
                 <Link to="/admin/dashboard" className="nav-link">📈 Estadísticas Globales</Link>
                 <Link to="/admin/usuarios" className="nav-link">👤 Gestión de Usuarios</Link>
@@ -167,7 +234,7 @@ const Dashboard = () => {
           <div className="card-box list-card">
             <div className="list-header">
               <h3>Cotizaciones Recientes</h3>
-              <span style={{fontSize: '0.8rem', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px'}}>
+              <span style={{fontSize: '0.8rem', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, color: '#475569'}}>
                 {cotizaciones.length} visibles
               </span>
             </div>
@@ -182,7 +249,7 @@ const Dashboard = () => {
                       <h4>{cot.codigo} {cot.asesor && <small style={{fontWeight:400, color:'#64748b'}}>👤 {cot.asesor.nombre}</small>}</h4>
                       <div className="quote-meta">
                         <span>📅 {new Date(cot.created_at).toLocaleDateString()}</span>
-                        <a href={construirUrlPublica(cot.slug)} target="_blank" className="quote-link">
+                        <a href={construirUrlPublica(cot.slug)} target="_blank" rel="noopener noreferrer" className="quote-link">
                           {construirUrlPublica(cot.slug)}
                         </a>
                       </div>
@@ -190,8 +257,8 @@ const Dashboard = () => {
                     
                     <div style={{display:'flex', alignItems:'center', gap:'16px'}}>
                       <div style={{textAlign:'right'}}>
-                        <div style={{fontSize:'1.2rem', fontWeight:'bold'}}>{cot.total_visitas}</div>
-                        <div style={{fontSize:'0.7rem', color:'#94a3b8'}}>VISITAS</div>
+                        <div style={{fontSize:'1.2rem', fontWeight:'bold', color: '#0f172a'}}>{cot.total_visitas}</div>
+                        <div style={{fontSize:'0.7rem', color:'#94a3b8', fontWeight: 600}}>VISITAS</div>
                       </div>
                       <div style={{display:'flex', gap:'8px'}}>
                         <button className="action-btn" title="Ver" onClick={()=>window.open(construirUrlPublica(cot.slug))}>👁️</button>
@@ -208,7 +275,7 @@ const Dashboard = () => {
             {pagination.pages > 1 && (
               <div style={{padding:'16px', display:'flex', justifyContent:'center', gap:'10px'}}>
                 <button className="action-btn" disabled={pagination.page===1} onClick={()=>setPagination(p=>({...p, page:p.page-1}))}>←</button>
-                <span style={{alignSelf:'center', fontSize:'0.9rem'}}>Página {pagination.page}</span>
+                <span style={{alignSelf:'center', fontSize:'0.9rem', fontWeight: 500, color: '#475569'}}>Página {pagination.page} de {pagination.pages}</span>
                 <button className="action-btn" disabled={pagination.page===pagination.pages} onClick={()=>setPagination(p=>({...p, page:p.page+1}))}>→</button>
               </div>
             )}
@@ -220,7 +287,7 @@ const Dashboard = () => {
       <ConfirmDialog
         isOpen={deleteModal.isOpen}
         title="Eliminar cotización"
-        message="¿Seguro que deseas eliminar?"
+        message="¿Seguro que deseas eliminar esta cotización y todas sus analíticas?"
         confirmText="Sí, eliminar"
         cancelText="Cancelar"
         isDangerous={true}

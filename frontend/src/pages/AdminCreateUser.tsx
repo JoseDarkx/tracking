@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { 
@@ -7,13 +7,42 @@ import {
   getCurrentUser, 
   getAllUsers, 
   deleteUser,
+  subirFotoPerfilAPI,
   type User 
 } from '../services/api';
 
 const AdminCreateUser = () => {
+  // 1. OBTENER USUARIO
   const currentUser = getCurrentUser();
   const userDisplay = { nombre: currentUser?.nombre || 'Admin', rol: 'Administrador' };
 
+  // 2. LÓGICA DE LA FOTO DE PERFIL
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || "https://i.pravatar.cc/300?img=12");
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Previsualización local
+    const localImageUrl = URL.createObjectURL(file);
+    setAvatarUrl(localImageUrl);
+
+    // Aquí irá tu conexión a la API en el futuro
+     try {
+       toast.loading('Subiendo foto...', { id: 'upload' });
+      await subirFotoPerfilAPI(file); 
+     toast.success('Foto actualizada', { id: 'upload' });
+    } catch (error) {
+      toast.error('Error al subir foto', { id: 'upload' });
+    }
+  };
+
+  // 3. ESTADOS DE GESTIÓN DE USUARIOS
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   
@@ -95,7 +124,6 @@ const AdminCreateUser = () => {
       
       {/* 1. PORTADA AZUL */}
       <div className="cover-header">
-         {/* Ajustamos el texto para que quede arriba y no choque */}
          <div style={{color: 'white', fontSize: '2rem', fontWeight: 700, opacity: 0.9}}>
            Gestión de Usuarios
         </div>
@@ -107,7 +135,31 @@ const AdminCreateUser = () => {
         {/* --- COLUMNA IZQUIERDA (SIDEBAR) --- */}
         <div>
           <div className="card-box profile-card">
-            <div className="profile-avatar">{userDisplay.nombre.charAt(0)}</div>
+            
+            {/* --- AVATAR EDITABLE --- */}
+            <div 
+              className="profile-avatar editable-avatar" 
+              onClick={handleAvatarClick}
+            >
+              <img 
+                src={avatarUrl} 
+                alt="Foto de perfil" 
+                className="profile-image" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+              />
+              <div className="avatar-overlay">
+                📷 Cambiar
+              </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                accept="image/*" 
+                style={{ display: 'none' }} 
+                onChange={handleAvatarChange} 
+              />
+            </div>
+            {/* ----------------------- */}
+
             <div className="profile-name">{userDisplay.nombre}</div>
             <div className="profile-role">{userDisplay.rol}</div>
           </div>
@@ -166,18 +218,16 @@ const AdminCreateUser = () => {
             </div>
           )}
 
-          {/* LISTA DE USUARIOS (El botón ahora está INTEGRADO aquí) */}
+          {/* LISTA DE USUARIOS */}
           <div className="card-box list-card">
-             {/* HEADER DE LA LISTA: Aquí integramos el botón para evitar el conflicto visual */}
              <div className="list-header">
                 <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
                    <h3 style={{fontSize:'1.1rem'}}>Equipo Registrado</h3>
-                   <span className="badge-counter" style={{background:'#eff6ff', color:'#2563eb', fontWeight:'bold'}}>
+                   <span className="badge-counter" style={{background:'#eff6ff', color:'#2563eb', fontWeight:'bold', padding: '2px 8px', borderRadius: '12px', fontSize: '0.85rem'}}>
                      {users.length}
                    </span>
                 </div>
                 
-                {/* Botón "Crear" movido aquí adentro */}
                 {!showForm && (
                   <button 
                     className="btn-primary" 
@@ -210,13 +260,13 @@ const AdminCreateUser = () => {
                             {u.role === 'admin' ? 'Admin' : 'Staff'}
                          </span>
 
-                         <div className="quote-actions">
+                         <div className="quote-actions" style={{display: 'flex', gap: '8px'}}>
                             <button className="action-btn" onClick={() => openEdit(u)} title="Editar">✏️</button>
                             <button 
                               className="action-btn delete" 
                               onClick={() => handleDelete(u.id, u.nombre)} 
                               disabled={u.id === currentUser?.id}
-                              style={{ opacity: u.id === currentUser?.id ? 0.3 : 1 }}
+                              style={{ opacity: u.id === currentUser?.id ? 0.3 : 1, cursor: u.id === currentUser?.id ? 'not-allowed' : 'pointer' }}
                             >
                               🗑️
                             </button>

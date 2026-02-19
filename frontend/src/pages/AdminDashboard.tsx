@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend
 } from 'recharts';
-import { obtenerEstadisticasEmpleados, obtenerTopCotizaciones, getCurrentUser } from '../services/api';
+import { obtenerEstadisticasEmpleados, obtenerTopCotizaciones, getCurrentUser, subirFotoPerfilAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
@@ -13,9 +13,37 @@ const AdminDashboard = () => {
   const [donutData, setDonutData] = useState<Array<{ name: string; value: number }>>([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. OBTENER USUARIO
   const user = getCurrentUser();
   const userDisplay = { nombre: user?.nombre || 'Admin', rol: 'Administrador' };
 
+  // 2. LÓGICA DE LA FOTO DE PERFIL
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || "https://i.pravatar.cc/300?img=12");
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Previsualización local
+    const localImageUrl = URL.createObjectURL(file);
+    setAvatarUrl(localImageUrl);
+
+    // Aquí irá tu conexión a la API en el futuro
+     try {
+       toast.loading('Subiendo foto...', { id: 'upload' });
+       await subirFotoPerfilAPI(file); 
+       toast.success('Foto actualizada', { id: 'upload' });
+     } catch (error) {
+       toast.error('Error al subir', { id: 'upload' });
+     }
+  };
+
+  // 3. CARGA DE DATOS ESTADÍSTICOS
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -63,7 +91,31 @@ const AdminDashboard = () => {
         {/* --- COLUMNA IZQUIERDA (SIDEBAR) --- */}
         <div>
           <div className="card-box profile-card">
-            <div className="profile-avatar">{userDisplay.nombre.charAt(0)}</div>
+            
+            {/* --- AVATAR EDITABLE --- */}
+            <div 
+              className="profile-avatar editable-avatar" 
+              onClick={handleAvatarClick}
+            >
+              <img 
+                src={avatarUrl} 
+                alt="Foto de perfil" 
+                className="profile-image" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+              />
+              <div className="avatar-overlay">
+                📷 Cambiar
+              </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                accept="image/*" 
+                style={{ display: 'none' }} 
+                onChange={handleAvatarChange} 
+              />
+            </div>
+            {/* ----------------------- */}
+
             <div className="profile-name">{userDisplay.nombre}</div>
             <div className="profile-role">{userDisplay.rol}</div>
           </div>
@@ -77,7 +129,6 @@ const AdminDashboard = () => {
         </div>
 
         {/* --- COLUMNA DERECHA (GRÁFICOS) --- */}
-        {/* 👇 AQUÍ ESTÁ EL ARREGLO: width: '100%' 👇 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
             
             {loading ? (

@@ -1,8 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SupabaseService } from '../database/supabase.service';
 import * as bcrypt from 'bcrypt';
-import { NotFoundException } from '@nestjs/common';
 
 interface LoginAttempt {
   count: number;
@@ -33,7 +32,7 @@ export class AuthService {
       );
     }
 
-    // Buscar usuario (AHORA INCLUYE ROLE)
+    // Buscar usuario
     const { data: user, error } = await this.supabase.client
       .from('usuarios')
       .select('*')
@@ -86,14 +85,14 @@ export class AuthService {
   }
 
   // ===============================
-  // 🎫 GENERAR TOKEN JWT (ACTUALIZADO CON ROLE)
+  // 🎫 GENERAR TOKEN JWT
   // ===============================
   async login(user: any) {
     const payload = {
       email: user.email,
       sub: user.id,
       nombre: user.nombre,
-      role: user.role || 'employee', // Incluir role en el payload
+      role: user.role || 'employee', 
     };
 
     return {
@@ -102,7 +101,8 @@ export class AuthService {
         id: user.id,
         email: user.email,
         nombre: user.nombre,
-        role: user.role || 'employee', // Incluir role en la respuesta
+        role: user.role || 'employee', 
+        avatarUrl: user.avatarUrl, // <--- FOTO AÑADIDA AQUÍ
       },
     };
   }
@@ -114,7 +114,7 @@ export class AuthService {
     nombre: string,
     email: string,
     password: string,
-    role: string = 'employee', // Por defecto es employee
+    role: string = 'employee', 
   ) {
     // Verificar si el email ya existe
     const { data: existing } = await this.supabase.client
@@ -127,11 +127,6 @@ export class AuthService {
       throw new UnauthorizedException('El email ya está registrado');
     }
 
-    // ⚠️ NOTA DE SEGURIDAD: En producción, solo admins deberían poder crear otros admins
-    // Opción 1: Solo permitir 'employee' durante el registro público
-    // Opción 2: Agregar validación de token de invitación para crear admins
-    // Opción 3: Solo admins autenticados pueden crear otros admins
-    
     // Validar role
     if (!['admin', 'employee', 'superadmin'].includes(role)) {
       throw new UnauthorizedException('Role inválido');
@@ -148,7 +143,7 @@ export class AuthService {
         nombre,
         email,
         password_hash,
-        role, // Incluir role al crear usuario
+        role, 
       })
       .select()
       .single();
@@ -158,27 +153,31 @@ export class AuthService {
     return this.login(user);
   }
 
-  // 1. Listar todos los usuarios
-async findAll() {
-  const { data, error } = await this.supabase.client
-    .from('usuarios')
-    .select('id, nombre, email, role, created_at')
-    .order('nombre', { ascending: true });
+  // ===============================
+  // 👥 LISTAR TODOS LOS USUARIOS
+  // ===============================
+  async findAll() {
+    const { data, error } = await this.supabase.client
+      .from('usuarios')
+      .select('id, nombre, email, role, avatarUrl, created_at') // <--- Añadí la foto para la lista de usuarios también
+      .order('nombre', { ascending: true });
 
-  if (error) throw error;
-  return data;
-}
+    if (error) throw error;
+    return data;
+  }
 
-// 2. Eliminar un usuario por ID
-async remove(id: string) {
-  const { error } = await this.supabase.client
-    .from('usuarios')
-    .delete()
-    .eq('id', id);
+  // ===============================
+  // 🗑️ ELIMINAR USUARIO
+  // ===============================
+  async remove(id: string) {
+    const { error } = await this.supabase.client
+      .from('usuarios')
+      .delete()
+      .eq('id', id);
 
-  if (error) throw error;
-  return { message: 'Usuario eliminado correctamente' };
-}
+    if (error) throw error;
+    return { message: 'Usuario eliminado correctamente' };
+  }
 
   // ===============================
   // 🔍 VERIFICAR TOKEN
@@ -191,37 +190,36 @@ async remove(id: string) {
     }
   }
 
-    // ===============================
+  // ===============================
   // 🔑 CAMBIAR PASSWORD (SOLO ADMIN)
   // ===============================
-      async adminChangePasswordByEmail(
-      email: string,
-      newPassword: string,
-    ) {
-      const { data: user, error } = await this.supabase.client
-        .from('usuarios')
-        .select('*')
-        .eq('email', email)
-        .single();
+  async adminChangePasswordByEmail(
+    email: string,
+    newPassword: string,
+  ) {
+    const { data: user, error } = await this.supabase.client
+      .from('usuarios')
+      .select('*')
+      .eq('email', email)
+      .single();
 
-      if (error || !user) {
-        throw new NotFoundException('Usuario no encontrado');
-      }
-
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-      const { error: updateError } = await this.supabase.client
-        .from('usuarios')
-        .update({ password_hash: hashedPassword })
-        .eq('email', email);
-
-      if (updateError) {
-        throw new Error('Error actualizando contraseña');
-      }
-
-      return { message: 'Contraseña actualizada correctamente' };
+    if (error || !user) {
+      throw new NotFoundException('Usuario no encontrado');
     }
 
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const { error: updateError } = await this.supabase.client
+      .from('usuarios')
+      .update({ password_hash: hashedPassword })
+      .eq('email', email);
+
+    if (updateError) {
+      throw new Error('Error actualizando contraseña');
+    }
+
+    return { message: 'Contraseña actualizada correctamente' };
+  }
 
   // ===============================
   // 📊 OBTENER PERFIL DEL USUARIO ACTUAL
@@ -229,7 +227,7 @@ async remove(id: string) {
   async getProfile(userId: string) {
     const { data: user, error } = await this.supabase.client
       .from('usuarios')
-      .select('id, nombre, email, role, created_at')
+      .select('id, nombre, email, role, avatarUrl, created_at') // <--- FOTO AÑADIDA AQUÍ
       .eq('id', userId)
       .single();
 
@@ -238,5 +236,51 @@ async remove(id: string) {
     }
 
     return user;
+  }
+
+  // ===============================
+  // 📸 SUBIR FOTO DE PERFIL
+  // ===============================
+  async subirAvatar(userId: string, file: Express.Multer.File): Promise<string> {
+    // 1. Instancia correcta de Supabase
+    const supabase = this.supabase.client; 
+
+    // 2. Generamos un nombre único para la foto
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `${userId}-${Date.now()}.${fileExt}`;
+    const filePath = `public/${fileName}`;
+
+    // 3. Subimos el archivo al bucket 'avatars'
+    const { data: uploadData, error: uploadError } = await supabase
+      .storage
+      .from('avatars')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true, 
+      });
+
+    if (uploadError) {
+      console.error(uploadError);
+      throw new Error('Error al subir la imagen a Supabase');
+    }
+
+    // 4. Obtenemos la URL pública
+    const { data: { publicUrl } } = supabase
+      .storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    // 5. Guardamos esa URL en la tabla 'usuarios'
+    const { error: updateError } = await supabase
+      .from('usuarios')
+      .update({ avatarUrl: publicUrl }) 
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error(updateError);
+      throw new Error('Error al guardar la URL en la base de datos');
+    }
+
+    return publicUrl;
   }
 }
