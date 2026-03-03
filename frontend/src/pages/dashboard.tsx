@@ -11,30 +11,30 @@ import {
   getCurrentUser,
   subirFotoPerfilAPI,
   type Cotizacion,
-  type MetricasDashboard, 
+  type MetricasDashboard,
   type PaginationInfo,
 } from '../services/api';
 
 const Dashboard = () => {
   // 1. OBTENER USUARIO (Se hace primero para poder usar sus datos en los estados)
   const currentUser = getCurrentUser();
-  const userDisplay = { 
-    nombre: currentUser?.nombre || 'Usuario', 
-    rol: currentUser?.role === 'admin' ? 'Administrador' : 'Colaborador' 
+  const userDisplay = {
+    nombre: currentUser?.nombre || 'Usuario',
+    rol: currentUser?.role === 'admin' ? 'Administrador' : 'Colaborador'
   };
 
   // 2. ESTADOS GENERALES
-  const [searchParams, ] = useSearchParams();
+  const [searchParams,] = useSearchParams();
   const usuarioFiltrado = searchParams.get('usuario');
   const [metricas, setMetricas] = useState<MetricasDashboard | null>(null);
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 10, total: 0, pages: 0 });
   const [_loading, setLoading] = useState(true);
-  
+
   // 3. ESTADOS Y LÓGICA DE LA FOTO DE PERFIL
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || "https://i.pravatar.cc/300?img=12");
-  
+
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
   };
@@ -46,14 +46,14 @@ const Dashboard = () => {
     // Previsualización local inmediata
     const localImageUrl = URL.createObjectURL(file);
     setAvatarUrl(localImageUrl);
-    
+
     // Aquí es donde conectarás tu API en el futuro
-     try {
-       toast.loading('Subiendo foto...', { id: 'upload' });
-       await subirFotoPerfilAPI(file); 
-       toast.success('Foto actualizada', { id: 'upload' });
-     } catch (error) {
-       toast.error('Error al subir', { id: 'upload' });
+    try {
+      toast.loading('Subiendo foto...', { id: 'upload' });
+      await subirFotoPerfilAPI(file);
+      toast.success('Foto actualizada', { id: 'upload' });
+    } catch (error) {
+      toast.error('Error al subir', { id: 'upload' });
     }
   };
 
@@ -76,10 +76,10 @@ const Dashboard = () => {
       setMetricas(metricasData);
       setCotizaciones(cotizacionesResponse.data);
       setPagination(cotizacionesResponse.pagination);
-    } catch (error) { 
-      toast.error('Error al cargar datos'); 
-    } finally { 
-      setLoading(false); 
+    } catch (error) {
+      toast.error('Error al cargar datos');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -94,10 +94,10 @@ const Dashboard = () => {
       setCodigo(''); setPdfFile(null);
       (document.getElementById('file-upload') as HTMLInputElement).value = '';
       setTimeout(() => cargarDatos(), 500);
-    } catch (error) { 
-      toast.error('Error al crear'); 
-    } finally { 
-      setUploading(false); 
+    } catch (error) {
+      toast.error('Error al crear');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -107,48 +107,48 @@ const Dashboard = () => {
       toast.success('Eliminado');
       setDeleteModal({ isOpen: false, cotizacionId: '', isLoading: false });
       cargarDatos();
-    } catch { 
-      toast.error('Error al eliminar'); 
+    } catch {
+      toast.error('Error al eliminar');
     }
   };
 
   // --- RENDERIZADO VISUAL ---
   return (
     <div className="app-container">
-      
+
       {/* 1. PORTADA ROJA/AZUL */}
       <div className="cover-header">
       </div>
 
       {/* 2. GRID PRINCIPAL */}
       <div className="dashboard-container">
-        
+
         {/* --- COLUMNA IZQUIERDA --- */}
         <div className="sidebar-col">
-          
+
           {/* Tarjeta de Perfil */}
           <div className="card-box profile-card">
-            
+
             {/* AVATAR EDITABLE */}
-            <div 
-              className="profile-avatar editable-avatar" 
+            <div
+              className="profile-avatar editable-avatar"
               onClick={handleAvatarClick}
             >
-              <img 
-                src={avatarUrl} 
-                alt="Foto de perfil" 
-                className="profile-image" 
+              <img
+                src={avatarUrl}
+                alt="Foto de perfil"
+                className="profile-image"
                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
               />
               <div className="avatar-overlay">
                 📷 Cambiar
               </div>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                accept="image/*" 
-                style={{ display: 'none' }} 
-                onChange={handleAvatarChange} 
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleAvatarChange}
               />
             </div>
 
@@ -181,7 +181,7 @@ const Dashboard = () => {
 
         {/* --- COLUMNA DERECHA (MAIN) --- */}
         <div className="main-col">
-          
+
           {/* Tarjetas de Métricas Superiores */}
           {metricas && (
             <div className="metrics-grid">
@@ -190,16 +190,18 @@ const Dashboard = () => {
                 <span className="metric-value">{metricas.totalCotizaciones}</span>
               </div>
               <div className="card-box metric-card">
-                <span className="metric-label" style={{color: '#2563eb'}}>Total Visitas</span>
-                <span className="metric-value" style={{color: '#2563eb'}}>{metricas.totalVisitas}</span>
+                <span className="metric-label" style={{ color: '#2563eb' }}>Total Visitas</span>
+                <span className="metric-value" style={{ color: '#2563eb' }}>{metricas.totalVisitas}</span>
               </div>
               <div className="card-box metric-card">
                 <span className="metric-label">Promedio</span>
-                <span className="metric-value">{metricas.totalCotizaciones > 0 ? Math.round(metricas.totalVisitas/metricas.totalCotizaciones) : 0}</span>
+                <span className="metric-value">{metricas.totalCotizaciones > 0 ? Math.round(metricas.totalVisitas / metricas.totalCotizaciones) : 0}</span>
               </div>
               <div className="card-box metric-card">
-                <span className="metric-label" style={{color: '#f97316'}}>Más Vista</span>
-                <span className="metric-value" style={{color: '#f97316'}}>{metricas.masVista || 0}</span>
+                <span className="metric-label" style={{ color: '#f97316' }}>Más Vista</span>
+                <span className="metric-value" style={{ color: '#f97316' }}>
+                  {metricas.masVista || (cotizaciones.length > 0 ? Math.max(...cotizaciones.map(c => c.total_visitas || 0)) : 0)}
+                </span>
               </div>
             </div>
           )}
@@ -210,18 +212,18 @@ const Dashboard = () => {
             <form onSubmit={handleSubmit} className="form-row">
               <div className="form-col">
                 <label className="form-label">Código de Referencia</label>
-                <input 
-                  className="input-field" 
-                  placeholder="Ej: COT-2026-001" 
-                  value={codigo} onChange={(e) => setCodigo(e.target.value)} 
+                <input
+                  className="input-field"
+                  placeholder="Ej: COT-2026-001"
+                  value={codigo} onChange={(e) => setCodigo(e.target.value)}
                 />
               </div>
               <div className="form-col">
                 <label className="form-label">Archivo PDF</label>
-                <input 
-                  type="file" id="file-upload" accept=".pdf" 
-                  className="input-field file-field" 
-                  onChange={(e) => setPdfFile(e.target.files?.[0] || null)} 
+                <input
+                  type="file" id="file-upload" accept=".pdf"
+                  className="input-field file-field"
+                  onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
                 />
               </div>
               <button type="submit" disabled={uploading || !codigo || !pdfFile} className="btn-primary">
@@ -234,19 +236,19 @@ const Dashboard = () => {
           <div className="card-box list-card">
             <div className="list-header">
               <h3>Cotizaciones Recientes</h3>
-              <span style={{fontSize: '0.8rem', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, color: '#475569'}}>
+              <span style={{ fontSize: '0.8rem', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, color: '#475569' }}>
                 {cotizaciones.length} visibles
               </span>
             </div>
-            
+
             <div className="list-body">
               {cotizaciones.length === 0 ? (
-                <div style={{padding: '40px', textAlign: 'center', color: '#94a3b8'}}>No hay cotizaciones aún</div>
+                <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No hay cotizaciones aún</div>
               ) : (
                 cotizaciones.map((cot) => (
                   <div key={cot.id} className="list-row">
                     <div className="quote-info">
-                      <h4>{cot.codigo} {cot.asesor && <small style={{fontWeight:400, color:'#64748b'}}>👤 {cot.asesor.nombre}</small>}</h4>
+                      <h4>{cot.codigo} {cot.asesor && <small style={{ fontWeight: 400, color: '#64748b' }}>👤 {cot.asesor.nombre}</small>}</h4>
                       <div className="quote-meta">
                         <span>📅 {new Date(cot.created_at).toLocaleDateString()}</span>
                         <a href={construirUrlPublica(cot.slug)} target="_blank" rel="noopener noreferrer" className="quote-link">
@@ -254,16 +256,16 @@ const Dashboard = () => {
                         </a>
                       </div>
                     </div>
-                    
-                    <div style={{display:'flex', alignItems:'center', gap:'16px'}}>
-                      <div style={{textAlign:'right'}}>
-                        <div style={{fontSize:'1.2rem', fontWeight:'bold', color: '#0f172a'}}>{cot.total_visitas}</div>
-                        <div style={{fontSize:'0.7rem', color:'#94a3b8', fontWeight: 600}}>VISITAS</div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#0f172a' }}>{cot.total_visitas}</div>
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>VISITAS</div>
                       </div>
-                      <div style={{display:'flex', gap:'8px'}}>
-                        <button className="action-btn" title="Ver" onClick={()=>window.open(construirUrlPublica(cot.slug))}>👁️</button>
-                        <button className="action-btn" title="Copiar" onClick={()=>{navigator.clipboard.writeText(construirUrlPublica(cot.slug)); toast.success('Copiado');}}>📋</button>
-                        <button className="action-btn delete" title="Eliminar" onClick={()=>{setDeleteModal({isOpen:true, cotizacionId:String(cot.id), isLoading:false})}}>🗑️</button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="action-btn" title="Ver" onClick={() => window.open(construirUrlPublica(cot.slug))}>👁️</button>
+                        <button className="action-btn" title="Copiar" onClick={() => { navigator.clipboard.writeText(construirUrlPublica(cot.slug)); toast.success('Copiado'); }}>📋</button>
+                        <button className="action-btn delete" title="Eliminar" onClick={() => { setDeleteModal({ isOpen: true, cotizacionId: String(cot.id), isLoading: false }) }}>🗑️</button>
                       </div>
                     </div>
                   </div>
@@ -273,10 +275,10 @@ const Dashboard = () => {
 
             {/* Paginación simple */}
             {pagination.pages > 1 && (
-              <div style={{padding:'16px', display:'flex', justifyContent:'center', gap:'10px'}}>
-                <button className="action-btn" disabled={pagination.page===1} onClick={()=>setPagination(p=>({...p, page:p.page-1}))}>←</button>
-                <span style={{alignSelf:'center', fontSize:'0.9rem', fontWeight: 500, color: '#475569'}}>Página {pagination.page} de {pagination.pages}</span>
-                <button className="action-btn" disabled={pagination.page===pagination.pages} onClick={()=>setPagination(p=>({...p, page:p.page+1}))}>→</button>
+              <div style={{ padding: '16px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                <button className="action-btn" disabled={pagination.page === 1} onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}>←</button>
+                <span style={{ alignSelf: 'center', fontSize: '0.9rem', fontWeight: 500, color: '#475569' }}>Página {pagination.page} de {pagination.pages}</span>
+                <button className="action-btn" disabled={pagination.page === pagination.pages} onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}>→</button>
               </div>
             )}
           </div>
@@ -292,7 +294,7 @@ const Dashboard = () => {
         cancelText="Cancelar"
         isDangerous={true}
         onConfirm={handleEliminar}
-        onCancel={()=>setDeleteModal({isOpen:false, cotizacionId:'', isLoading:false})}
+        onCancel={() => setDeleteModal({ isOpen: false, cotizacionId: '', isLoading: false })}
       />
     </div>
   );
