@@ -2,7 +2,7 @@
 import { useNavigate } from 'react-router-dom';
 import { logout, getCurrentUser } from '../services/api';
 import toast from 'react-hot-toast';
-import logo from '../assets/icono.png';
+import logo from '../assets/icono.webp';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -22,7 +22,7 @@ const Navbar = () => {
       </div>
       <div className="navbar-user">
         <span>Hola, {user?.nombre || 'Usuario'}</span>
-        <button 
+        <button
           onClick={handleLogout}
           className="btn-logout"
           title="Cerrar sesión"

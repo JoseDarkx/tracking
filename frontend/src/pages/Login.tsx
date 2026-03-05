@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import logo from '../assets/icono.png';
+import logo from '../assets/icono.webp';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { login, isAuthenticated } from '../services/api';
