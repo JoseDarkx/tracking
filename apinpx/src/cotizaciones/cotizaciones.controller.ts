@@ -8,6 +8,8 @@ import {
   UseInterceptors,
   Param,
   NotFoundException,
+  Patch,
+  BadRequestException,
   Req,
   Res,
   Query,
@@ -71,6 +73,24 @@ export class CotizacionesController {
   obtenerEstadisticasEmpleados() {
     return this.service.obtenerEstadisticasEmpleados();
   }
+
+  // 🏷️ Cambiar estado de la cotización (Ganada/Perdida/Pendiente)
+  @Patch('cotizaciones/:id/estado')
+  @Roles('employee', 'admin')
+  cambiarEstado(
+    @Param('id') id: string,
+    @Body('estado') estado: string,
+    @CurrentUser() user: UserPayload,
+  ) {
+    // Validamos que el estado sea correcto para evitar basura en la DB
+    if (!['pendiente', 'ganada', 'perdida'].includes(estado)) {
+      throw new BadRequestException('Estado inválido. Debe ser: pendiente, ganada o perdida.');
+    }
+
+    // Llamamos al servicio pasando el ID, el nuevo estado, quién lo pide y su rol
+    return this.service.cambiarEstado(id, estado, user.id, user.role);
+  }
+
 
   // 📊 Top cotizaciones más vistas (SOLO ADMIN)
   @Get('admin/estadisticas/top-vistas')

@@ -41,6 +41,7 @@ export interface Cotizacion {
   publicUrl?: string;
   asesor?: Asesor | null;
   user_id?: string;
+  estado?: 'pendiente' | 'ganada' | 'perdida';
 }
 
 export interface PaginationInfo {
@@ -180,7 +181,7 @@ export const listarCotizaciones = async (
 ): Promise<ListarCotizacionesResponse> => {
   const response = await api.get('/cotizaciones', {
     // Agregamos userId a los parámetros de la consulta
-    params: { page, limit, userId }, 
+    params: { page, limit, userId },
   });
   return response.data;
 };
@@ -213,7 +214,7 @@ export const obtenerMetricas = async (): Promise<MetricasDashboard> => {
 };
 
 export const obtenerEstadisticasEmpleados = async (): Promise<
-  Array<{ id: string; nombre: string; cotizaciones: number }>
+  Array<{ id: string; nombre: string; cotizaciones: number; ganadas: number; perdidas: number }>
 > => {
   const response = await api.get('/admin/estadisticas/empleados');
   return response.data;
@@ -225,6 +226,13 @@ export const obtenerTopCotizaciones = async (): Promise<
   const response = await api.get('/admin/estadisticas/top-vistas');
   return response.data;
 };
+
+// 🏷️ Cambiar el estado de una cotización
+export const cambiarEstadoCotizacion = async (id: string, estado: string) => {
+  const response = await api.patch(`/cotizaciones/${id}/estado`, { estado });
+  return response.data;
+};
+
 
 // ===============================
 // 🌐 PUBLIC URL
@@ -262,7 +270,7 @@ export const subirFotoPerfilAPI = async (file: File) => {
   if (userStr) {
     const user = JSON.parse(userStr);
     // Asignamos la nueva URL que nos devuelva el backend
-    user.avatarUrl = response.data.avatarUrl; 
+    user.avatarUrl = response.data.avatarUrl;
     localStorage.setItem('user', JSON.stringify(user));
   }
 

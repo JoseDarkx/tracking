@@ -15,7 +15,7 @@ export class CotizacionesService {
       .from('cotizaciones')
       .select(
         `
-        id, codigo, slug, pdf_path, created_at, user_id,
+        id, codigo, slug, pdf_path, created_at, user_id, estado,
         visitas ( id )
       `,
         { count: 'exact' },
@@ -39,6 +39,7 @@ export class CotizacionesService {
       created_at: c.created_at,
       total_visitas: c.visitas?.length ?? 0,
       user_id: c.user_id,
+      estado: c.estado || 'pendiente',
     }));
 
     if (userRole === 'admin' && result.length > 0) {
@@ -83,7 +84,7 @@ export class CotizacionesService {
       .from('cotizaciones')
       .select(
         `
-        id, codigo, slug, pdf_path, created_at, user_id,
+        id, codigo, slug, pdf_path, created_at, user_id, estado,
         visitas ( id )
       `,
         { count: 'exact' },
@@ -101,6 +102,7 @@ export class CotizacionesService {
       created_at: c.created_at,
       total_visitas: c.visitas?.length ?? 0,
       user_id: c.user_id,
+      estado: c.estado || 'pendiente',
     }));
 
     if (result.length > 0) {
@@ -150,7 +152,7 @@ export class CotizacionesService {
       .from('cotizaciones')
       .select(
         `
-        id, codigo, slug, pdf_path, created_at,
+        id, codigo, slug, pdf_path, created_at, estado,
         visitas ( id )
       `,
         { count: 'exact' },
@@ -299,17 +301,19 @@ export class CotizacionesService {
   async obtenerEstadisticasEmpleados() {
     const { data: cotizaciones, error } = await this.supabase.client
       .from('cotizaciones')
-      .select('user_id');
+      .select('user_id, estado');
 
     if (error) {
       console.error('Error obteniendo cotizaciones para estadísticas:', error);
       return [];
     }
 
-    const conteo: Record<string, number> = {};
+    const conteo: Record<string, { ganadas: number; perdidas: number }> = {};
     cotizaciones.forEach((c) => {
       if (c.user_id) {
-        conteo[c.user_id] = (conteo[c.user_id] || 0) + 1;
+        if (!conteo[c.user_id]) conteo[c.user_id] = { ganadas: 0, perdidas: 0 };
+        if (c.estado === 'ganada') conteo[c.user_id].ganadas++;
+        if (c.estado === 'perdida') conteo[c.user_id].perdidas++;
       }
     });
 
@@ -324,9 +328,12 @@ export class CotizacionesService {
     return (usuarios || []).map((u) => ({
       id: u.id,
       nombre: u.nombre || u.email,
-      cotizaciones: conteo[u.id] || 0,
+      cotizaciones: (conteo[u.id]?.ganadas || 0) + (conteo[u.id]?.perdidas || 0),
+      ganadas: conteo[u.id]?.ganadas || 0,
+      perdidas: conteo[u.id]?.perdidas || 0,
     })).sort((a, b) => b.cotizaciones - a.cotizaciones);
   }
+
 
   async obtenerCotizacionesMasVistas() {
     // Traemos el código y las visitas relacionadas
@@ -349,7 +356,7 @@ export class CotizacionesService {
     // 2. Ordenamos de Mayor a Menor (descendente)
     // 3. Tomamos solo las 5 primeras
     return stats
-      .filter(item => item.value > 0) 
+      .filter(item => item.value > 0)
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
   }
@@ -395,7 +402,7 @@ export class CotizacionesService {
       if (usuario?.email) asesorEmail = usuario.email;
     }
 
-    
+
 
     // 🔔 WEBHOOK (ÚNICO CAMBIO)
     if (process.env.WEBHOOK_URL) {
@@ -448,4 +455,35 @@ export class CotizacionesService {
 
     return { ok: true };
   }
+
+  async cambiarEstado(id: string, estado: string, userId: string, role: string) {
+    // 1. Verificamos que la cotización exista y obtenemos su dueño
+    const { data: cotizacion, error: findError } = await this.supabase.client
+      .from('cotizaciones')
+      .select('id, user_id')
+      .eq('id', id)
+      .single();
+
+    if (findError || !cotizacion) {
+      throw new NotFoundException('Cotización no encontrada');
+    }
+
+    // 2. Si es empleado, verificamos que sea dueño de la cotización
+    if (role === 'employee' && cotizacion.user_id !== userId) {
+      throw new ForbiddenException('No tienes permiso para modificar esta cotización');
+    }
+
+    // 3. Actualizamos el estado
+    const { error: updateError } = await this.supabase.client
+      .from('cotizaciones')
+      .update({ estado })
+      .eq('id', id);
+
+    if (updateError) {
+      throw new Error('Error al actualizar el estado: ' + updateError.message);
+    }
+
+    return { ok: true, mensaje: `Estado actualizado a ${estado}` };
+  }
+
 }
