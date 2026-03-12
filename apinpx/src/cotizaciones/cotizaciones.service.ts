@@ -3,10 +3,22 @@ import { SupabaseService } from '../database/supabase.service';
 import { randomUUID } from 'crypto';
 import type { Request } from 'express';
 
+/**
+ * Servicio encargado de la lógica de negocio de las cotizaciones.
+ * Se comunica con Supabase para el almacenamiento de datos y archivos.
+ */
 @Injectable()
 export class CotizacionesService {
   constructor(private readonly supabase: SupabaseService) { }
 
+  /**
+   * Lista cotizaciones con soporte para paginación y filtrado por usuario.
+   * @param page Número de página actual.
+   * @param limit Cantidad de registros por página.
+   * @param userId ID del usuario (opcional si es admin).
+   * @param userRole Rol del usuario ('employee' o 'admin').
+   * @returns Objeto con los datos de las cotizaciones y metadatos de paginación.
+   */
   async listar(page = 1, limit = 10, userId?: string, userRole?: string) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -15,9 +27,9 @@ export class CotizacionesService {
       .from('cotizaciones')
       .select(
         `
-        id, codigo, slug, pdf_path, created_at, user_id, estado,
-        visitas ( id )
-      `,
+          id, codigo, slug, pdf_path, created_at, user_id, estado, valor,
+          visitas ( id )
+        `,
         { count: 'exact' },
       );
 
@@ -40,6 +52,7 @@ export class CotizacionesService {
       total_visitas: c.visitas?.length ?? 0,
       user_id: c.user_id,
       estado: c.estado || 'pendiente',
+      valor: c.valor,
     }));
 
     if (userRole === 'admin' && result.length > 0) {
@@ -76,6 +89,12 @@ export class CotizacionesService {
     };
   }
 
+  /**
+   * Recupera todas las cotizaciones del sistema para la vista de administrador.
+   * @param page Página actual.
+   * @param limit Registros por página.
+   * @returns Lista de cotizaciones con información del asesor responsable.
+   */
   async listarTodasParaAdmin(page = 1, limit = 10) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -84,9 +103,9 @@ export class CotizacionesService {
       .from('cotizaciones')
       .select(
         `
-        id, codigo, slug, pdf_path, created_at, user_id, estado,
-        visitas ( id )
-      `,
+          id, codigo, slug, pdf_path, created_at, user_id, estado, valor,
+          visitas ( id )
+        `,
         { count: 'exact' },
       )
       .order('created_at', { ascending: false })
@@ -103,6 +122,7 @@ export class CotizacionesService {
       total_visitas: c.visitas?.length ?? 0,
       user_id: c.user_id,
       estado: c.estado || 'pendiente',
+      valor: c.valor,
     }));
 
     if (result.length > 0) {
@@ -144,6 +164,13 @@ export class CotizacionesService {
     };
   }
 
+  /**
+   * Lista las cotizaciones de un empleado en particular.
+   * @param empleadoId ID del empleado.
+   * @param page Página actual.
+   * @param limit Cantidad por página.
+   * @returns Lista de cotizaciones del empleado.
+   */
   async listarPorEmpleado(empleadoId: string, page = 1, limit = 10) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -152,9 +179,9 @@ export class CotizacionesService {
       .from('cotizaciones')
       .select(
         `
-        id, codigo, slug, pdf_path, created_at, estado,
-        visitas ( id )
-      `,
+          id, codigo, slug, pdf_path, created_at, estado, valor,
+          visitas ( id )
+        `,
         { count: 'exact' },
       )
       .eq('user_id', empleadoId)
@@ -171,6 +198,7 @@ export class CotizacionesService {
         pdf_path: c.pdf_path,
         created_at: c.created_at,
         total_visitas: c.visitas?.length ?? 0,
+        valor: c.valor,
       })),
       pagination: {
         page,
@@ -181,7 +209,15 @@ export class CotizacionesService {
     };
   }
 
-  async crear(codigo: string, pdf: Express.Multer.File, userId: string) {
+  /**
+   * Crea una nueva cotización, sube el PDF a Supabase Storage y guarda el registro.
+   * @param codigo Código de identificación de la cotización.
+   * @param pdf Archivo subido mediante Multer.
+   * @param userId ID del usuario que crea la cotización.
+   * @param valor Valor monetario (opcional).
+   * @returns Resultado de la creación y la URL pública.
+   */
+  async crear(codigo: string, pdf: Express.Multer.File, userId: string, valor?: number) {
     if (!pdf) throw new Error('PDF no recibido');
 
     const slug = randomUUID().slice(0, 8);
@@ -203,6 +239,7 @@ export class CotizacionesService {
         slug,
         pdf_path: filePath,
         user_id: userId,
+        ...(valor != null ? { valor } : {}),
       })
       .select()
       .single();
@@ -216,6 +253,13 @@ export class CotizacionesService {
     };
   }
 
+  /**
+   * Busca una cotización por su ID y verifica permisos.
+   * @param id ID de la cotización de la base de datos.
+   * @param userId ID del usuario que consulta.
+   * @param role Rol del usuario.
+   * @returns Datos de la cotización.
+   */
   async obtenerPorId(id: string, userId: string, role: string) {
     const { data, error } = await this.supabase.client
       .from('cotizaciones')
@@ -232,6 +276,10 @@ export class CotizacionesService {
     return data;
   }
 
+  /**
+   * Calcula estadísticas de resumen para administradores.
+   * @returns Totales, promedios y máximos de visitas.
+   */
   async obtenerEstadisticasGlobales() {
     // 🔢 Total de cotizaciones
     const { count: totalCotizaciones } = await this.supabase.client
@@ -279,6 +327,12 @@ export class CotizacionesService {
     };
   }
 
+  /**
+   * Obtiene las métricas necesarias para el panel principal del usuario.
+   * @param userId ID del usuario.
+   * @param role Rol del usuario.
+   * @returns Objeto con las métricas.
+   */
   async obtenerMetricasDashboard(userId: string, role: string) {
     if (role === 'admin') return this.obtenerEstadisticasGlobales();
 
@@ -298,6 +352,10 @@ export class CotizacionesService {
     };
   }
 
+  /**
+   * Obtiene un desglose del desempeño de cotizaciones por cada empleado.
+   * @returns Arreglo de estadísticas por empleado.
+   */
   async obtenerEstadisticasEmpleados() {
     const { data: cotizaciones, error } = await this.supabase.client
       .from('cotizaciones')
@@ -334,7 +392,64 @@ export class CotizacionesService {
     })).sort((a, b) => b.cotizaciones - a.cotizaciones);
   }
 
+  /**
+   * Recupera las cotizaciones que tienen estado Ganada o Perdida.
+   * @param requestUserId Usuario que realiza la petición.
+   * @param role Rol del peticionario.
+   * @param filtroUserId ID de usuario para filtrar (opcional para admins).
+   * @returns Listas separadas de ganadas/perdidas y el total ganado.
+   */
+  async obtenerCerradas(requestUserId: string, role: string, filtroUserId?: string) {
+    let query = this.supabase.client
+      .from('cotizaciones')
+      .select(`id, codigo, slug, created_at, estado, user_id, valor, visitas(id)`)
+      .in('estado', ['ganada', 'perdida'])
+      .order('created_at', { ascending: false });
 
+    // Empleado solo ve las suyas
+    if (role === 'employee') {
+      query = query.eq('user_id', requestUserId);
+    } else if (filtroUserId) {
+      query = query.eq('user_id', filtroUserId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Enriquecer con asesor
+    const userIds = [...new Set((data || []).map(c => c.user_id).filter(Boolean))];
+    let usuariosMap = new Map();
+
+    if (userIds.length > 0) {
+      const { data: usuarios } = await this.supabase.client
+        .from('usuarios').select('id, nombre, email').in('id', userIds);
+      usuariosMap = new Map(usuarios?.map(u => [u.id, u]) || []);
+    }
+
+    const mapped = (data || []).map((c: any) => {
+      const u = usuariosMap.get(c.user_id);
+      return {
+        id: c.id, codigo: c.codigo, slug: c.slug,
+        created_at: c.created_at, estado: c.estado,
+        total_visitas: c.visitas?.length ?? 0,
+        valor: c.valor ?? null,
+        asesor: u ? { nombre: u.nombre, email: u.email } : null,
+      };
+    });
+
+    const ganadas = mapped.filter(c => c.estado === 'ganada');
+    const perdidas = mapped.filter(c => c.estado === 'perdida');
+
+    // Sumar valores de cotizaciones ganadas (solo las que tienen valor definido)
+    const totalGanado = ganadas.reduce((sum, c) => sum + (c.valor ?? 0), 0);
+
+    return { ganadas, perdidas, totalGanado };
+  }
+
+  /**
+   * Obtiene el top 5 de las cotizaciones con más visitas para visualización en gráficas.
+   * @returns Arreglo con nombres y conteo de visitas.
+   */
   async obtenerCotizacionesMasVistas() {
     // Traemos el código y las visitas relacionadas
     const { data, error } = await this.supabase.client
@@ -362,6 +477,12 @@ export class CotizacionesService {
   }
 
 
+  /**
+   * Registra una visita y abre el tracking cuando un cliente accede al PDF.
+   * @param slug Slug único de la cotización.
+   * @param req Solicitud Express para capturar metadatos.
+   * @returns Datos necesarios para visualizar la cotización desde el cliente.
+   */
   async abrirConTracking(slug: string, req: Request) {
     const { data: cotizacion, error } = await this.supabase.client
       .from('cotizaciones')
@@ -420,7 +541,7 @@ export class CotizacionesService {
             nombre: asesorNombre,
             email: asesorEmail,
           },
-          fecha_hora: new Date().toISOString(),
+          fecha_hour: new Date().toISOString(),
         }),
       }).catch(() => { });
     }
@@ -437,6 +558,13 @@ export class CotizacionesService {
     };
   }
 
+  /**
+   * Elimina un registro de cotización y sus visitas asociadas.
+   * @param cotizacionId ID de la cotización.
+   * @param userId ID del usuario solicitante.
+   * @param userRole Rol del usuario.
+   * @returns Confirmación de eliminación.
+   */
   async eliminar(cotizacionId: string, userId: string, userRole: string) {
     const { data: cotizacion } = await this.supabase.client
       .from('cotizaciones')
@@ -456,6 +584,14 @@ export class CotizacionesService {
     return { ok: true };
   }
 
+  /**
+   * Cambia el estado de una cotización y valida pertenencia si es empleado.
+   * @param id ID de la cotización.
+   * @param estado Nuevo estado.
+   * @param userId ID del usuario.
+   * @param role Rol del usuario.
+   * @returns Mensaje de éxito.
+   */
   async cambiarEstado(id: string, estado: string, userId: string, role: string) {
     // 1. Verificamos que la cotización exista y obtenemos su dueño
     const { data: cotizacion, error: findError } = await this.supabase.client

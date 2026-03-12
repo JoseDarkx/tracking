@@ -8,6 +8,9 @@ import { CotizacionesModule } from './cotizaciones/cotizaciones.module';
 import { AuthModule } from './auth/auth.module';
 import { TrackingModule } from './tracking/tracking.module';
 
+/**
+ * Módulo raíz de la aplicación que integra todos los módulos, controladores y proveedores.
+ */
 @Module({
   imports: [
     ScheduleModule.forRoot(),

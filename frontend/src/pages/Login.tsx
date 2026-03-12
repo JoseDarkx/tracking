@@ -4,6 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { login, isAuthenticated } from '../services/api';
 
+/**
+ * Componente de visualización del formulario de inicio de sesión.
+ * Maneja la autenticación contra la API y guarda el token en el almacenamiento local.
+ */
 const Login = () => {
   const navigate = useNavigate();
 

@@ -16,8 +16,14 @@ import {
   type PaginationInfo,
 } from '../services/api';
 
+/**
+ * Panel principal del asesor y administrador (vista de colaborador).
+ * Permite crear cotizaciones, ver el listado personal y gestionar el estado de las mismas.
+ */
 const Dashboard = () => {
   const currentUser = getCurrentUser();
+  const formatCOP = (n: number) =>
+    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
   const userDisplay = {
     nombre: currentUser?.nombre || 'Usuario',
     rol: currentUser?.role === 'admin' ? 'Administrador' : 'Colaborador'
@@ -49,6 +55,7 @@ const Dashboard = () => {
   };
 
   const [codigo, setCodigo] = useState('');
+  const [valor, setValor] = useState<string>('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, cotizacionId: '', isLoading: false });
@@ -59,6 +66,10 @@ const Dashboard = () => {
     estado: string;
     phase: 'confirming' | 'sweeping' | 'swept' | 'collapsing';
   } | null>(null);
+
+  // 🌳 CASCADE STATE — Set de IDs de grupos colapsados (por defecto todos expandidos)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+  const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { cargarDatos(); }, [pagination.page, usuarioFiltrado]);
 
@@ -79,15 +90,84 @@ const Dashboard = () => {
     }
   };
 
+  // 🌳 Agrupa cotizaciones por primera palabra compartida
+  const agruparCotizaciones = (lista: Cotizacion[]) => {
+    const visibles = lista.filter(cot => {
+      const e = String(cot.estado || '').toLowerCase().trim();
+      return (e !== 'ganada' && e !== 'perdida') || sweepState?.id === cot.id;
+    });
+
+    // Obtiene la primera palabra de un código (en mayúsculas)
+    const primeraWord = (code: string) => code.trim().toUpperCase().split(/\s+/)[0];
+
+    // Agrupar por primera palabra
+    const porPrimeraWord = new Map<string, Cotizacion[]>();
+    for (const cot of visibles) {
+      const key = primeraWord(cot.codigo);
+      if (!porPrimeraWord.has(key)) porPrimeraWord.set(key, []);
+      porPrimeraWord.get(key)!.push(cot);
+    }
+
+    type Grupo = { parent: Cotizacion; children: Cotizacion[] };
+    const grupos: Grupo[] = [];
+
+    for (const members of porPrimeraWord.values()) {
+      // Ordenar: el más corto (nombre base) queda como padre; si igual longitud, alfabético
+      members.sort((a, b) =>
+        a.codigo.length - b.codigo.length || a.codigo.localeCompare(b.codigo)
+      );
+      if (members.length === 1) {
+        grupos.push({ parent: members[0], children: [] });
+      } else {
+        grupos.push({ parent: members[0], children: members.slice(1) });
+      }
+    }
+
+    // Ordenar grupos por la fecha de la cotización más reciente dentro del grupo
+    grupos.sort((a, b) => {
+      const getLatestDate = (g: Grupo) => {
+        const dates = [new Date(g.parent.created_at).getTime(), ...g.children.map(c => new Date(c.created_at).getTime())];
+        return Math.max(...dates);
+      };
+      return getLatestDate(b) - getLatestDate(a);
+    });
+
+    return grupos;
+  };
+
+  // 🌳 Toggle colapsar/expandir grupo
+  const toggleGroup = (parentId: number) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(parentId)) { next.delete(parentId); } else { next.add(parentId); }
+      return next;
+    });
+  };
+
+  // ➕ Pre-rellenar formulario con nombre base para crear variante
+  const handleCrearVariante = (codigoBase: string) => {
+    setCodigo(codigoBase + ' ');
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Enfocar el input
+      const input = formRef.current?.querySelector('input[type="text"], input:not([type])') as HTMLInputElement | null;
+      input?.focus();
+      // Mover cursor al final
+      if (input) { const len = input.value.length; input.setSelectionRange(len, len); }
+    }, 100);
+    toast.success('Escribe el sufijo para la variante (ej: V2, REVISIÓN...)', { duration: 3000, icon: '✏️' });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!codigo || !pdfFile) return toast.error('Completa los campos');
     try {
       setUploading(true);
-      const result = await crearCotizacion(codigo, pdfFile);
+      const valorNum = valor.trim() !== '' ? parseInt(valor.replace(/[^0-9]/g, ''), 10) : undefined;
+      const result = await crearCotizacion(codigo, pdfFile, valorNum);
       navigator.clipboard.writeText(result.publicUrl);
       toast.success('¡Link creado y copiado!');
-      setCodigo(''); setPdfFile(null);
+      setCodigo(''); setPdfFile(null); setValor('');
       (document.getElementById('file-upload') as HTMLInputElement).value = '';
       setTimeout(() => cargarDatos(), 500);
     } catch {
@@ -149,6 +229,158 @@ const Dashboard = () => {
     }
   };
 
+  // 🌳 Renderiza una fila (padre o hijo)
+  const renderRow = (cot: Cotizacion, isChild: boolean, hasChildren: boolean, isExpanded: boolean) => {
+    const s = sweepState?.id === cot.id ? sweepState : null;
+    const bloqueada = sweepState !== null && sweepState.id !== cot.id;
+
+    return (
+      <div
+        key={cot.id}
+        className={`list-row ${s?.phase === 'collapsing' ? 'collapsing' : ''}`}
+        style={{
+          pointerEvents: bloqueada || (s && s.phase !== 'confirming') ? 'none' : 'auto',
+          opacity: bloqueada ? 0.5 : 1,
+          transition: 'opacity 0.2s ease',
+          marginLeft: isChild ? '28px' : 0,
+          borderLeft: isChild ? '2px solid #cbd5e1' : undefined,
+          borderRadius: isChild ? '0 8px 8px 0' : undefined,
+          position: 'relative',
+        }}
+      >
+        {/* Barra sweep */}
+        <div className={`sweep-bar ${s?.estado || ''} ${s && s.phase !== 'confirming' ? 'active' : ''}`} />
+
+        {/* Resultado */}
+        <div className={`sweep-result ${s?.phase === 'swept' || s?.phase === 'collapsing' ? 'visible' : ''}`}>
+          {s?.estado === 'ganada' ? '✅  GANADA' : s?.estado === 'perdida' ? '❌  PERDIDA' : ''}
+        </div>
+
+        {/* Overlay confirmación */}
+        {s?.phase === 'confirming' && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute', inset: 0, zIndex: 10,
+              pointerEvents: 'all',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0 24px',
+              background: s.estado === 'ganada'
+                ? 'linear-gradient(90deg, #f0fdf4, #dcfce7)'
+                : 'linear-gradient(90deg, #fff1f2, #fee2e2)',
+              animation: 'confirmIn 0.2s ease',
+            }}
+          >
+            <span style={{ fontWeight: 600, fontSize: '0.9rem', color: s.estado === 'ganada' ? '#166534' : '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {s.estado === 'ganada' ? '✅' : '❌'}
+              ¿Marcar como <strong>{s.estado}</strong>?
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={(e) => { e.stopPropagation(); handleConfirmar(); }} style={{ padding: '7px 18px', border: 'none', borderRadius: '8px', background: s.estado === 'ganada' ? '#16a34a' : '#dc2626', color: 'white', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Confirmar
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); handleCancelar(); }} style={{ padding: '7px 18px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', color: '#475569', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Contenido normal */}
+        <div className={`sweep-content ${s?.phase === 'swept' || s?.phase === 'collapsing' ? 'hidden' : ''}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+
+              {/* ▼/▶ Toggle expand/collapse (solo padre con hijos) */}
+              {hasChildren && (
+                <button
+                  onClick={() => toggleGroup(cot.id)}
+                  title={isExpanded ? 'Colapsar variantes' : 'Expandir variantes'}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.7rem', color: '#64748b', padding: '0 2px', flexShrink: 0, lineHeight: 1, fontWeight: 700 }}
+                >
+                  {isExpanded ? '▼' : '▶'}
+                </button>
+              )}
+
+              {/* Ícono hijo */}
+              {isChild && (
+                <span style={{ color: '#94a3b8', fontSize: '0.8rem', flexShrink: 0, marginRight: '2px' }}>└</span>
+              )}
+
+              <h4 style={{ margin: 0, fontSize: '0.95rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1, minWidth: 0 }}>
+                {cot.codigo}
+              </h4>
+
+              <span style={{ backgroundColor: getBadgeStyle(cot.estado).bg, color: getBadgeStyle(cot.estado).color, borderRadius: '12px', padding: '2px 10px', fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {String(cot.estado || 'pendiente')}
+              </span>
+
+              {cot.valor != null && (
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#16a34a', marginLeft: '4px' }}>
+                  {formatCOP(cot.valor)}
+                </span>
+              )}
+
+              {cot.asesor && (
+                <small style={{ color: '#64748b', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  👤 {cot.asesor.nombre}
+                </small>
+              )}
+
+              <div className="row-hover-actions" style={{ flexShrink: 0 }}>
+                <button className="btn-ganada" onClick={() => handleEstadoChange(cot.id, 'ganada')}>✓ Ganada</button>
+                <button className="btn-perdida" onClick={() => handleEstadoChange(cot.id, 'perdida')}>✗ Perdida</button>
+              </div>
+            </div>
+
+            <div className="quote-meta">
+              <span>📅 {new Date(cot.created_at).toLocaleDateString()}</span>
+              <a href={construirUrlPublica(cot.slug)} target="_blank" rel="noopener noreferrer" className="quote-link">
+                {construirUrlPublica(cot.slug)}
+              </a>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+            <div style={{ textAlign: 'center', minWidth: '44px' }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', lineHeight: 1 }}>{cot.total_visitas}</div>
+              <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>visitas</div>
+            </div>
+
+            <div style={{ width: '1px', height: '28px', background: '#e2e8f0' }} />
+
+            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+              {/* ➕ Botón Crear Variante */}
+              <button
+                title="Crear variante con el mismo nombre"
+                onClick={() => handleCrearVariante(cot.codigo)}
+                style={{
+                  padding: '4px 8px', border: '1px solid #cbd5e1', borderRadius: '6px',
+                  background: '#f8fafc', color: '#475569', fontWeight: 700,
+                  fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'inherit',
+                  whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '3px',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#e2e8f0'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f8fafc'; }}
+              >
+                ＋ Variante
+              </button>
+              <button className="action-btn" title="Copiar" onClick={() => { navigator.clipboard.writeText(construirUrlPublica(cot.slug)); toast.success('Copiado'); }}>📋</button>
+              <button className="action-btn delete" title="Eliminar" onClick={() => setDeleteModal({ isOpen: true, cotizacionId: String(cot.id), isLoading: false })}>🗑️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const grupos = agruparCotizaciones(cotizaciones);
+  const totalVisibles = cotizaciones.filter(cot => {
+    const e = String(cot.estado || '').toLowerCase().trim();
+    return e !== 'ganada' && e !== 'perdida';
+  }).length;
+
   return (
     <div className="app-container">
       <div className="cover-header"></div>
@@ -180,6 +412,10 @@ const Dashboard = () => {
           <div className="card-box nav-card">
             <div className="nav-title">Menú Principal</div>
             <Link to="/dashboard" className="nav-link active">📊 Dashboard</Link>
+
+            {/* ✅ Visible para TODOS — empleados y admins */}
+            <Link to="/cotizaciones/cerradas" className="nav-link">📁 Cotizaciones Cerradas</Link>
+
             {currentUser?.role === 'admin' && (
               <>
                 <Link to="/admin/dashboard" className="nav-link">📈 Estadísticas Globales</Link>
@@ -216,12 +452,32 @@ const Dashboard = () => {
             </div>
           )}
 
-          <div className="card-box new-quote-card">
+          {/* Formulario Nueva Cotización */}
+          <div className="card-box new-quote-card" ref={formRef}>
             <h3 className="section-title">🚀 Nueva Cotización</h3>
             <form onSubmit={handleSubmit} className="form-row">
               <div className="form-col">
                 <label className="form-label">Código de Referencia</label>
-                <input className="input-field" placeholder="Ej: COT-2026-001" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+                <input
+                  className="input-field"
+                  placeholder="Ej: COT-2026-001"
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value)}
+                />
+              </div>
+              <div className="form-col">
+                <label className="form-label">Valor de la Cotización (COP)</label>
+                <input
+                  className="input-field"
+                  type="text"
+                  placeholder="Ej: 5.000.000"
+                  value={valor}
+                  onChange={(e) => {
+                    const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                    const formattedValue = rawValue === '' ? '' : new Intl.NumberFormat('es-CO').format(parseInt(rawValue));
+                    setValor(formattedValue);
+                  }}
+                />
               </div>
               <div className="form-col">
                 <label className="form-label">Archivo PDF</label>
@@ -233,176 +489,38 @@ const Dashboard = () => {
             </form>
           </div>
 
+
+          {/* Lista en Cascada */}
           <div className="card-box list-card">
             <div className="list-header">
               <h3>Cotizaciones Recientes</h3>
               <span style={{ fontSize: '0.8rem', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, color: '#475569' }}>
-                {cotizaciones.filter(cot => {
-                  const e = String(cot.estado || '').toLowerCase().trim();
-                  return e !== 'ganada' && e !== 'perdida';
-                }).length} visibles
+                {totalVisibles} visibles
               </span>
             </div>
 
             <div className="list-body">
-              {cotizaciones.filter(cot => {
-                const e = String(cot.estado || '').toLowerCase().trim();
-                return (e !== 'ganada' && e !== 'perdida') || sweepState?.id === cot.id;
-              }).length === 0 ? (
+              {grupos.length === 0 ? (
                 <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
                   No hay cotizaciones pendientes 🎉
                 </div>
               ) : (
-                cotizaciones
-                  .filter(cot => {
-                    const e = String(cot.estado || '').toLowerCase().trim();
-                    return (e !== 'ganada' && e !== 'perdida') || sweepState?.id === cot.id;
-                  })
-                  .map((cot) => {
-                    const s = sweepState?.id === cot.id ? sweepState : null;
-
-                    // Bloquear OTRAS filas cuando hay sweep activo
-                    // La fila con confirmación activa NO se bloquea (sus botones deben funcionar)
-                    const bloqueada = sweepState !== null && sweepState.id !== cot.id;
-
-                    return (
-                      <div
-                        key={cot.id}
-                        className={`list-row ${s?.phase === 'collapsing' ? 'collapsing' : ''}`}
-                        style={{
-                          pointerEvents: bloqueada || (s && s.phase !== 'confirming') ? 'none' : 'auto',
-                          opacity: bloqueada ? 0.5 : 1,
-                          transition: 'opacity 0.2s ease',
-                        }}
-                      >
-                        {/* Barra sweep */}
-                        <div className={`sweep-bar ${s?.estado || ''} ${s && s.phase !== 'confirming' ? 'active' : ''}`} />
-
-                        {/* Resultado */}
-                        <div className={`sweep-result ${s?.phase === 'swept' || s?.phase === 'collapsing' ? 'visible' : ''}`}>
-                          {s?.estado === 'ganada' ? '✅  GANADA' : s?.estado === 'perdida' ? '❌  PERDIDA' : ''}
+                grupos.map(({ parent, children }) => {
+                  const hasChildren = children.length > 0;
+                  const isExpanded = !collapsedGroups.has(parent.id);
+                  return (
+                    <div key={parent.id}>
+                      {renderRow(parent, false, hasChildren, isExpanded)}
+                      {hasChildren && isExpanded && (
+                        <div>
+                          {children.map(child => renderRow(child, true, false, false))}
                         </div>
-
-                        {/* ── Overlay de confirmación ── */}
-                        {s?.phase === 'confirming' && (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              position: 'absolute', inset: 0, zIndex: 10,
-                              pointerEvents: 'all',
-                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                              padding: '0 24px',
-                              background: s.estado === 'ganada'
-                                ? 'linear-gradient(90deg, #f0fdf4, #dcfce7)'
-                                : 'linear-gradient(90deg, #fff1f2, #fee2e2)',
-                              animation: 'confirmIn 0.2s ease',
-                            }}
-                          >
-                            <span style={{
-                              fontWeight: 600, fontSize: '0.9rem',
-                              color: s.estado === 'ganada' ? '#166534' : '#991b1b',
-                              display: 'flex', alignItems: 'center', gap: '8px',
-                            }}>
-                              {s.estado === 'ganada' ? '✅' : '❌'}
-                              ¿Marcar como <strong>{s.estado}</strong>?
-                            </span>
-
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleConfirmar(); }}
-                                style={{
-                                  padding: '7px 18px', border: 'none', borderRadius: '8px',
-                                  background: s.estado === 'ganada' ? '#16a34a' : '#dc2626',
-                                  color: 'white', fontWeight: 700, fontSize: '0.85rem',
-                                  cursor: 'pointer', fontFamily: 'inherit',
-                                }}
-                              >
-                                Confirmar
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleCancelar(); }}
-                                style={{
-                                  padding: '7px 18px', border: '1px solid #cbd5e1',
-                                  borderRadius: '8px', background: 'white',
-                                  color: '#475569', fontWeight: 600, fontSize: '0.85rem',
-                                  cursor: 'pointer', fontFamily: 'inherit',
-                                }}
-                              >
-                                Cancelar
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Contenido normal */}
-                        <div className={`sweep-content ${s?.phase === 'swept' || s?.phase === 'collapsing' ? 'hidden' : ''}`}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                              <h4 style={{
-                                margin: 0, fontSize: '0.95rem', color: '#0f172a',
-                                whiteSpace: 'nowrap', overflow: 'hidden',
-                                textOverflow: 'ellipsis', flexShrink: 1, minWidth: 0,
-                              }}>
-                                {cot.codigo}
-                              </h4>
-
-                              <span style={{
-                                backgroundColor: getBadgeStyle(cot.estado).bg,
-                                color: getBadgeStyle(cot.estado).color,
-                                borderRadius: '12px', padding: '2px 10px',
-                                fontSize: '0.72rem', fontWeight: 700,
-                                whiteSpace: 'nowrap', flexShrink: 0,
-                              }}>
-                                {String(cot.estado || 'pendiente')}
-                              </span>
-
-                              {cot.asesor && (
-                                <small style={{ color: '#64748b', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                  👤 {cot.asesor.nombre}
-                                </small>
-                              )}
-
-                              <div className="row-hover-actions" style={{ flexShrink: 0 }}>
-                                <button className="btn-ganada" onClick={() => handleEstadoChange(cot.id, 'ganada')}>
-                                  ✓ Ganada
-                                </button>
-                                <button className="btn-perdida" onClick={() => handleEstadoChange(cot.id, 'perdida')}>
-                                  ✗ Perdida
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="quote-meta">
-                              <span>📅 {new Date(cot.created_at).toLocaleDateString()}</span>
-                              <a href={construirUrlPublica(cot.slug)} target="_blank" rel="noopener noreferrer" className="quote-link">
-                                {construirUrlPublica(cot.slug)}
-                              </a>
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                            <div style={{ textAlign: 'center', minWidth: '44px' }}>
-                              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', lineHeight: 1 }}>
-                                {cot.total_visitas}
-                              </div>
-                              <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>
-                                visitas
-                              </div>
-                            </div>
-
-                            <div style={{ width: '1px', height: '28px', background: '#e2e8f0' }} />
-
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button className="action-btn" title="Ver" onClick={() => window.open(construirUrlPublica(cot.slug))}>👁️</button>
-                              <button className="action-btn" title="Copiar" onClick={() => { navigator.clipboard.writeText(construirUrlPublica(cot.slug)); toast.success('Copiado'); }}>📋</button>
-                              <button className="action-btn delete" title="Eliminar" onClick={() => setDeleteModal({ isOpen: true, cotizacionId: String(cot.id), isLoading: false })}>🗑️</button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                      )}
+                    </div>
+                  );
+                })
               )}
+
             </div>
 
             {pagination.pages > 1 && (

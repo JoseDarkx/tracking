@@ -4,6 +4,10 @@ import { logout, getCurrentUser } from '../services/api';
 import toast from 'react-hot-toast';
 import logo from '../assets/icono.webp';
 
+/**
+ * Barra de navegación superior de la aplicación.
+ * Muestra el logo, el nombre del sistema y las opciones del usuario autenticado.
+ */
 const Navbar = () => {
   const navigate = useNavigate();
   const user = getCurrentUser();

@@ -42,7 +42,7 @@ En entornos empresariales, la dispersión de datos de rendimiento y la falta de 
 - **Gestión de Cotizaciones**: Sistema de carga de archivos (PDF) con generación de enlaces únicos de seguimiento.
 - **Autenticación Segura**: Sistema de login con bloqueo preventivo tras intentos fallidos y gestión de sesiones mediante JWT.
 - **Notificaciones Real-time**: Registro de IP, User-Agent y alertas inmediatas al abrir documentos.
-- **Visualización Avanzada**: Gráficos interactivos 3D y componentes de alto impacto visual.
+- **Visualización Avanzada**: Gráficos interactivos y componentes de alto impacto visual.
 
 ---
 
@@ -55,25 +55,41 @@ El proyecto adopta una arquitectura de **Monorepo Modular**:
 
 ---
 
-## 📂 Estructura de Carpetas
+## 📂 Estructura de Carpetas y Funcionalidades Principales
+
+El proyecto se divide en dos aplicaciones principales con la siguiente estructura y responsabilidades destacadas:
 
 ```text
 tracking-main/
 ├── apinpx/                # 🔙 Backend API (NestJS)
 │   ├── src/
-│   │   ├── auth/          # Seguridad: JWT, Passport, RBAC (vRules/Guards)
-│   │   ├── cotizaciones/  # Núcleo: Tracking de PDFs, Webhooks, Almacenamiento
-│   │   ├── database/      # Integración: Proveedores de Supabase/DB
-│   │   └── tracking/      # Servicios: Lógica de indicadores y métricas
+│   │   ├── auth/          # Seguridad: Controladores, guards JWT y roles
+│   │   ├── cotizaciones/  # Núcleo: Lógica de negocio de cotizaciones
+│   │   ├── database/      # Integración: Configuración de Supabase
+│   │   └── tracking/      # Servicios: Tracking adicional
 │   └── test/              # Pruebas: Unitarias (Jest) y E2E
 ├── frontend/              # 💻 Frontend Web App (React + Vite)
 │   ├── src/
-│   │   ├── components/    # UI: Componentes compartidos y Layouts
-│   │   ├── pages/         # Vistas: Dashboard, Reportes, Panel Admin
-│   │   ├── services/      # API: Cliente Axios e Interceptores de JWT
-│   │   └── hooks/         # Lógica: Custom hooks para estado global
+│   │   ├── components/    # UI: Componentes base reutilizables
+│   │   ├── pages/         # Vistas: Pantallas completas (Dashboard, Login, etc.)
+│   │   ├── services/      # API: Cliente Axios, interceptores
+│   │   └── styles/        # Estilos: CSS Global y Tailwind
 └── README.md              # Documentación raíz
 ```
+
+### Backend (`apinpx/src/`)
+- `auth/`: Autenticación, guards JWT, validación de roles y decoradores (`auth.controller.ts`, `auth.service.ts`, `jwt-auth.guard.ts`).
+- `cotizaciones/`: Lógica central para creación, listado, métricas y cambio de estados de cotizaciones (`cotizaciones.controller.ts`, `cotizaciones.service.ts`).
+- `tracking/`: Módulo reservado para un futuro seguimiento o funciones relacionadas (`tracking.controller.ts`).
+- `database/`: Integración con Supabase para manejar el storage y DB (`supabase.service.ts`).
+- `main.ts` y config: Entrada de la app, habilitación de CORS y aumento de límite de carga de carga útil (JSON/URLencoded).
+
+### Frontend (`frontend/src/`)
+- `components/`: UI base de la app (`Navbar.tsx`, `ConfirmDialog.tsx`, `ProtectedRoute.tsx`).
+- `pages/`: Pantallas principales como Login, Dashboards (Admin y Empleados), creación de usuarios y vista pública (`AdminDashboard.tsx`, `dashboard.tsx`, `Login.tsx`, `PublicView.tsx`, `AdminCreateUser.tsx`).
+- `services/`: Configuración de Axios, interceptores y llamadas a endpoints centralizados (`api.tsx`).
+- `styles/`: Estilos globales y específicos usando CSS puro/Tailwind (`index.css`, `confirm-dialog.css`).
+- `App.tsx` & `main.tsx`: Ruteo principal usando `react-router-dom` y renderizado raíz de la aplicación React.
 
 ---
 
@@ -88,7 +104,7 @@ tracking-main/
 ### Frontend (User Interface)
 - **Framework**: React 19 + Vite
 - **Styling**: Tailwind CSS
-- **Gráficos**: Recharts, Three.js, React Three Fiber
+- **Gráficos**: Recharts
 - **Navegación**: React Router 7
 
 ### Infraestructura & DevOps
@@ -168,14 +184,15 @@ npm run dev
 
 ---
 
-## � Endpoints Documentados
+## 📡 Endpoints Documentados
 
 | Método | Endpoint | Descripción | Acceso |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/auth/login` | Autenticación y retorno de JWT | Público |
-| `POST` | `/cotizaciones/crear` | Carga de PDF y generación de slug | Autenticado |
-| `GET` | `/cotizaciones/:slug` | Tracking de apertura y redirección | Público |
-| `GET` | `/tracking/metrics` | Obtención de métricas para Dashboard | Admin/Líder |
+| `POST` | `/api/auth/login` | Autenticación y retorno de JWT | Público |
+| `POST` | `/api/cotizaciones` | Carga de PDF y generación de slug | Empleado/Admin |
+| `GET` | `/c/:slug` | Tracking de apertura y redirección | Público |
+| `GET` | `/api/metricas` | Obtención de métricas para Dashboard | Empleado/Admin |
+| `GET` | `/api/admin/estadisticas` | Estadísticas globales del panel | Admin |
 
 ---
 

@@ -7,6 +7,10 @@ import {
 import { obtenerEstadisticasEmpleados, obtenerTopCotizaciones, getCurrentUser, subirFotoPerfilAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
+/**
+ * Componente de panel de administración.
+ * Visualiza estadísticas globales del equipo, rendimiento de asesores y tráfico de cotizaciones.
+ */
 const AdminDashboard = () => {
    const navigate = useNavigate();
    const [data, setData] = useState<Array<{ id: string; nombre: string; cotizaciones: number; ganadas: number; perdidas: number }>>([]);
@@ -120,10 +124,18 @@ const AdminDashboard = () => {
                </div>
 
                <div className="card-box nav-card">
-                  <div className="nav-title">Menú Administrativo</div>
-                  <Link to="/dashboard" className="nav-link">📊 Dashboard General</Link>
-                  <Link to="/admin/dashboard" className="nav-link active">📈 Estadísticas</Link>
-                  <Link to="/admin/usuarios" className="nav-link">👤 Gestión de Usuarios</Link>
+                  <div className="nav-title">Menú Principal</div>
+                  <Link to="/dashboard" className="nav-link active">📊 Dashboard</Link>
+
+                  {/* ✅ Visible para TODOS — empleados y admins */}
+                  <Link to="/cotizaciones/cerradas" className="nav-link">📁 Cotizaciones Cerradas</Link>
+
+                  {user?.role === 'admin' && (
+                     <>
+                        <Link to="/admin/dashboard" className="nav-link">📈 Estadísticas Globales</Link>
+                        <Link to="/admin/usuarios" className="nav-link">👤 Gestión de Usuarios</Link>
+                     </>
+                  )}
                </div>
             </div>
 

@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 
+/**
+ * Vista pública para que clientes visualicen sus facturas o cotizaciones.
+ * No requiere autenticación y registra la visita automáticamente al cargar.
+ */
 const PublicView = () => {
   const { slug } = useParams<{ slug: string }>();
   const [data, setData] = useState<{

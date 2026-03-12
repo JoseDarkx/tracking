@@ -8,6 +8,9 @@ interface LoginAttempt {
   blockedUntil: Date | null;
 }
 
+/**
+ * Servicio encargado de la gestión de autenticación, usuarios y seguridad.
+ */
 @Injectable()
 export class AuthService {
   private loginAttempts: Map<string, LoginAttempt> = new Map();
@@ -20,6 +23,13 @@ export class AuthService {
   // ===============================
   // 🔐 VALIDAR USUARIO
   // ===============================
+  /**
+   * Valida las credenciales de un usuario y maneja bloqueos por intentos fallidos.
+   * @param email Correo electrónico.
+   * @param password Contraseña en texto plano.
+   * @returns Usuario sin la contraseña hash si es válido.
+   * @throws UnauthorizedException si las credenciales son inválidas o la cuenta esté bloqueada.
+   */
   async validateUser(email: string, password: string): Promise<any> {
     // Verificar si está bloqueado
     const attempt = this.loginAttempts.get(email);
@@ -62,6 +72,10 @@ export class AuthService {
   // ===============================
   // 📝 REGISTRAR INTENTO FALLIDO
   // ===============================
+  /**
+   * Registra un intento fallido de inicio de sesión y aplica bloqueos temporales.
+   * @param email Correo electrónico que falló.
+   */
   private registerFailedAttempt(email: string) {
     const attempt = this.loginAttempts.get(email) || {
       count: 0,
@@ -87,6 +101,11 @@ export class AuthService {
   // ===============================
   // 🎫 GENERAR TOKEN JWT
   // ===============================
+  /**
+   * Genera el token de acceso JWT para un usuario validado.
+   * @param user Objeto de usuario obtenido de la BD.
+   * @returns Objeto con el token JWT y datos básicos del usuario.
+   */
   async login(user: any) {
     const payload = {
       email: user.email,
@@ -110,6 +129,14 @@ export class AuthService {
   // ===============================
   // 👤 REGISTRAR NUEVO USUARIO
   // ===============================
+  /**
+   * Registra a un nuevo usuario en la base de datos con contraseña encriptada.
+   * @param nombre Nombre completo.
+   * @param email Email único.
+   * @param password Contraseña en texto plano.
+   * @param role Rol del usuario ('employee', 'admin', 'superadmin').
+   * @returns Resultado del login para el nuevo usuario.
+   */
   async register(
     nombre: string,
     email: string,
@@ -156,6 +183,10 @@ export class AuthService {
   // ===============================
   // 👥 LISTAR TODOS LOS USUARIOS
   // ===============================
+  /**
+   * Obtiene la lista de todos los usuarios registrados.
+   * @returns Arreglo de usuarios con datos públicos.
+   */
   async findAll() {
     const { data, error } = await this.supabase.client
       .from('usuarios')
@@ -169,6 +200,11 @@ export class AuthService {
   // ===============================
   // 🗑️ ELIMINAR USUARIO
   // ===============================
+  /**
+   * Elimina un usuario permanentemente por su identificador.
+   * @param id ID del usuario.
+   * @returns Mensaje de éxito.
+   */
   async remove(id: string) {
     const { error } = await this.supabase.client
       .from('usuarios')
@@ -182,6 +218,11 @@ export class AuthService {
   // ===============================
   // 🔍 VERIFICAR TOKEN
   // ===============================
+  /**
+   * Verifica la autenticidad de un token JWT.
+   * @param token String del token.
+   * @returns Payload decodificado si es válido.
+   */
   async verifyToken(token: string) {
     try {
       return this.jwtService.verify(token);
@@ -193,6 +234,12 @@ export class AuthService {
   // ===============================
   // 🔑 CAMBIAR PASSWORD (SOLO ADMIN)
   // ===============================
+  /**
+   * Cambia la contraseña de un usuario por parte de un administrador.
+   * @param email Email del destinatario.
+   * @param newPassword Nueva contraseña en texto plano.
+   * @returns Mensaje informativo del cambio.
+   */
   async adminChangePasswordByEmail(
     email: string,
     newPassword: string,
@@ -224,6 +271,11 @@ export class AuthService {
   // ===============================
   // 📊 OBTENER PERFIL DEL USUARIO ACTUAL
   // ===============================
+  /**
+   * Recupera los datos del perfil de un usuario por su ID.
+   * @param userId ID del usuario.
+   * @returns Datos del perfil.
+   */
   async getProfile(userId: string) {
     const { data: user, error } = await this.supabase.client
       .from('usuarios')
@@ -241,6 +293,12 @@ export class AuthService {
   // ===============================
   // 📸 SUBIR FOTO DE PERFIL
   // ===============================
+  /**
+   * Sube una imagen de avatar a Supabase Storage y actualiza el perfil del usuario.
+   * @param userId ID del usuario.
+   * @param file Archivo subido (buffer y metadatos).
+   * @returns URL pública de la imagen alojada.
+   */
   async subirAvatar(userId: string, file: Express.Multer.File): Promise<string> {
     // 1. Instancia correcta de Supabase
     const supabase = this.supabase.client; 

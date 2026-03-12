@@ -2,6 +2,10 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { json, urlencoded } from 'express'; // ✨ 1. Importamos esto de express
 
+/**
+ * Función de arranque de la aplicación NestJS.
+ * Configura CORS, límites de carga de archivos y el puerto de escucha.
+ */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 

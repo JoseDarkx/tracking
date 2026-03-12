@@ -11,6 +11,10 @@ import {
   type User
 } from '../services/api';
 
+/**
+ * Vista de administración para la creación y gestión de usuarios del sistema.
+ * Permite registrar nuevos empleados, cambiar contraseñas y eliminar usuarios.
+ */
 const AdminCreateUser = () => {
   // 1. OBTENER USUARIO
   const currentUser = getCurrentUser();
@@ -166,10 +170,18 @@ const AdminCreateUser = () => {
           </div>
 
           <div className="card-box nav-card">
-            <div className="nav-title">Menú Administrativo</div>
-            <Link to="/dashboard" className="nav-link">📊 Dashboard General</Link>
-            <Link to="/admin/dashboard" className="nav-link">📈 Estadísticas</Link>
-            <Link to="/admin/usuarios" className="nav-link active">👤 Gestión de Usuarios</Link>
+            <div className="nav-title">Menú Principal</div>
+            <Link to="/dashboard" className="nav-link active">📊 Dashboard</Link>
+
+            {/* ✅ Visible para TODOS — empleados y admins */}
+            <Link to="/cotizaciones/cerradas" className="nav-link">📁 Cotizaciones Cerradas</Link>
+
+            {currentUser?.role === 'admin' && (
+              <>
+                <Link to="/admin/dashboard" className="nav-link">📈 Estadísticas Globales</Link>
+                <Link to="/admin/usuarios" className="nav-link">👤 Gestión de Usuarios</Link>
+              </>
+            )}
           </div>
         </div>
 

@@ -3,6 +3,10 @@ import axios from 'axios';
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+/**
+ * Configuración base de Axios para las peticiones al backend.
+ * Incluye la URL base y cabeceras por defecto.
+ */
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -27,21 +31,36 @@ api.interceptors.request.use(
 // ===============================
 // 📦 TYPES
 // ===============================
+/** Representa a un asesor (usuario) en el sistema. */
 export interface Asesor {
+  /** Nombre completo del asesor. */
   nombre: string;
+  /** Correo electrónico del asesor. */
   email?: string;
 }
 
+/** Representa una cotización individual con sus metadatos. */
 export interface Cotizacion {
+  /** ID interno de la base de datos. */
   id: number;
+  /** Código de seguimiento público. */
   codigo: string;
+  /** Identificador único para la URL. */
   slug: string;
+  /** Cantidad total de veces que se ha visto la cotización. */
   total_visitas: number;
+  /** Fecha de creación. */
   created_at: string;
+  /** URL pública directa al PDF (opcional). */
   publicUrl?: string;
+  /** Información del asesor que creó la cotización. */
   asesor?: Asesor | null;
+  /** ID del usuario creador. */
   user_id?: string;
+  /** Estado actual de la cotización. */
   estado?: 'pendiente' | 'ganada' | 'perdida';
+  /** Valor monetario asignado. */
+  valor?: number | null;
 }
 
 export interface PaginationInfo {
@@ -96,6 +115,12 @@ export interface CreateUserPayload {
 // ===============================
 // 🔐 AUTH
 // ===============================
+/**
+ * Inicia sesión con email y contraseña.
+ * @param email Correo del usuario.
+ * @param password Contraseña.
+ * @returns Token JWT y datos del usuario.
+ */
 export const login = async (
   email: string,
   password: string,
@@ -162,6 +187,10 @@ export const logout = () => {
   localStorage.removeItem('user');
 };
 
+/**
+ * Verifica si el usuario tiene un token guardado en el almacenamiento local.
+ * @returns True si está autenticado.
+ */
 export const isAuthenticated = (): boolean => {
   return !!localStorage.getItem('token');
 };
@@ -174,6 +203,13 @@ export const getCurrentUser = (): User | null => {
 // ===============================
 // 📄 COTIZACIONES
 // ===============================
+/**
+ * Solicita la lista de cotizaciones con filtros y paginación.
+ * @param page Página a consultar.
+ * @param limit Registros por página.
+ * @param userId Filtrar por dueño de la cotización.
+ * @returns Lista de cotizaciones y datos de paginación.
+ */
 export const listarCotizaciones = async (
   page: number = 1,
   limit: number = 10,
@@ -186,13 +222,22 @@ export const listarCotizaciones = async (
   return response.data;
 };
 
+/**
+ * Envía una nueva cotización al servidor incluyendo el archivo PDF.
+ * @param codigo Código identificador.
+ * @param pdfFile Archivo binario del PDF.
+ * @param valor Valor monetario opcional.
+ * @returns Respuesta del servidor con los datos de creación.
+ */
 export const crearCotizacion = async (
   codigo: string,
   pdfFile: File,
+  valor?: number,
 ): Promise<any> => {
   const formData = new FormData();
   formData.append('codigo', codigo);
   formData.append('pdf', pdfFile);
+  if (valor != null) formData.append('valor', String(valor));
 
   const response = await api.post('/cotizaciones', formData, {
     headers: {
@@ -227,6 +272,15 @@ export const obtenerTopCotizaciones = async (): Promise<
   return response.data;
 };
 
+export const obtenerCotizacionesCerradas = async (): Promise<{
+  ganadas: Cotizacion[];
+  perdidas: Cotizacion[];
+  totalGanado: number;
+}> => {
+  const response = await api.get('/cotizaciones/cerradas');
+  return response.data;
+};
+
 // 🏷️ Cambiar el estado de una cotización
 export const cambiarEstadoCotizacion = async (id: string, estado: string) => {
   const response = await api.patch(`/cotizaciones/${id}/estado`, { estado });
@@ -245,6 +299,11 @@ export const construirUrlPublica = (slug: string): string => {
 // ===============================
 // 🌐 PUBLIC - COTIZACIÓN PÚBLICA (sin auth)
 // ===============================
+/**
+ * Obtiene los datos públicos de una cotización para visualización del cliente.
+ * @param slug Identificador único de la cotización.
+ * @returns Datos del PDF e información básica para el tracking.
+ */
 export const obtenerCotizacionPublica = async (
   slug: string,
 ): Promise<CotizacionPublicaData> => {
