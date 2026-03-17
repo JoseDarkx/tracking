@@ -366,10 +366,11 @@ export class CotizacionesService {
       return [];
     }
 
-    const conteo: Record<string, { ganadas: number; perdidas: number }> = {};
+    const conteo: Record<string, { total: number; ganadas: number; perdidas: number }> = {};
     cotizaciones.forEach((c) => {
       if (c.user_id) {
-        if (!conteo[c.user_id]) conteo[c.user_id] = { ganadas: 0, perdidas: 0 };
+        if (!conteo[c.user_id]) conteo[c.user_id] = { total: 0, ganadas: 0, perdidas: 0 };
+        conteo[c.user_id].total++;                                    // ← siempre suma
         if (c.estado === 'ganada') conteo[c.user_id].ganadas++;
         if (c.estado === 'perdida') conteo[c.user_id].perdidas++;
       }
@@ -386,7 +387,7 @@ export class CotizacionesService {
     return (usuarios || []).map((u) => ({
       id: u.id,
       nombre: u.nombre || u.email,
-      cotizaciones: (conteo[u.id]?.ganadas || 0) + (conteo[u.id]?.perdidas || 0),
+      cotizaciones: conteo[u.id]?.total || 0,
       ganadas: conteo[u.id]?.ganadas || 0,
       perdidas: conteo[u.id]?.perdidas || 0,
     })).sort((a, b) => b.cotizaciones - a.cotizaciones);
