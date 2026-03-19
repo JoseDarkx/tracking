@@ -161,6 +161,13 @@ const Dashboard = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!codigo || !pdfFile) return toast.error('Completa los campos');
+
+    // Validación: solo permitir letras, números, espacios, guiones y guiones bajos (evita emojis)
+    const regexCodigo = /^[a-zA-Z0-9\s\-_ñÑáéíóúÁÉÍÓÚ]+$/;
+    if (!regexCodigo.test(codigo)) {
+      return toast.error('El código de referencia contiene caracteres no permitidos o emojis');
+    }
+
     try {
       setUploading(true);
       const valorNum = valor.trim() !== '' ? parseInt(valor.replace(/[^0-9]/g, ''), 10) : undefined;

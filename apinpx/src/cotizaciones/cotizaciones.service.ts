@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 import { randomUUID } from 'crypto';
 import type { Request } from 'express';
@@ -219,6 +219,12 @@ export class CotizacionesService {
    */
   async crear(codigo: string, pdf: Express.Multer.File, userId: string, valor?: number) {
     if (!pdf) throw new Error('PDF no recibido');
+
+    // Validación: solo permitir letras, números, espacios, guiones y guiones bajos (evita emojis)
+    const regexCodigo = /^[a-zA-Z0-9\s\-_ñÑáéíóúÁÉÍÓÚ]+$/;
+    if (!regexCodigo.test(codigo)) {
+      throw new BadRequestException('El código de referencia contiene caracteres no permitidos o emojis');
+    }
 
     const slug = randomUUID().slice(0, 8);
     const filePath = `${slug}.pdf`;
