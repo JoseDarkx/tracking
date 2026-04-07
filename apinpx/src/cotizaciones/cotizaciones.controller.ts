@@ -60,6 +60,22 @@ export class CotizacionesController {
   }
 
   /**
+   * Obtiene cotizaciones del sistema para exportar a Excel.
+   * Acepta ?mes= y ?anio= para filtrar por período. Si no se pasan, devuelve todo.
+   * @returns Lista de cotizaciones con datos del asesor.
+   */
+  @Get('admin/cotizaciones/reporte')
+  @Roles('admin')
+  listarParaReporte(
+    @Query('mes') mes?: string,
+    @Query('anio') anio?: string,
+  ) {
+    const mesNum = mes ? parseInt(mes, 10) : undefined;
+    const anioNum = anio ? parseInt(anio, 10) : undefined;
+    return this.service.listarParaReporte(mesNum, anioNum);
+  }
+
+  /**
    * Obtiene las cotizaciones de un empleado específico (Solo para administradores).
    * @param empleadoId ID del empleado cuyas cotizaciones se desean consultar.
    * @param page Número de página.

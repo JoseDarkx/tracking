@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unir Archivos PDF</title>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 1rem;
+            background-color: #f9f9f9;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .file-list {
+            list-style-type: none;
+            padding: 0;
+            margin-top: 1rem;
+        }
+
+        .file-list li {
+            background: #f1f1f1;
+            margin: 0.5rem 0;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .remove-btn {
+            color: #d9534f;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .remove-btn:hover {
+            color: #c9302c;
+        }
+
+        button.action-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        button.action-btn:hover {
+            background-color: #0056b3;
+        }
+
+        button.action-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        input[type="file"] {
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h2>Unir PDFs por Orden</h2>
+        <p>Añade los archivos PDF. El orden en el que aparecen en la lista será el orden final del documento unido.</p>
+
+        <input type="file" id="fileInput" accept="application/pdf" multiple>
+
+        <ul id="fileList" class="file-list"></ul>
+
+        <button id="mergeBtn" class="action-btn">Unir y Descargar PDF</button>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+
+        // Escuchar cuando el usuario selecciona archivos
+        document.getElementById('fileInput').addEventListener('change', function (event) {
+            const files = Array.from(event.target.files);
+            selectedFiles = selectedFiles.concat(files);
+            renderFileList();
+            // Limpiar el input para permitir seleccionar el mismo archivo si es necesario
+            event.target.value = '';
+        });
+
+        // Actualizar la lista visual de archivos
+        function renderFileList() {
+            const list = document.getElementById('fileList');
+            list.innerHTML = ''; // Limpiar lista actual
+
+            selectedFiles.forEach((file, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${index + 1}. ${file.name}`;
+
+                // Botón para eliminar un archivo de la lista
+                const removeBtn = document.createElement('button');
+                removeBtn.textContent = '✕';
+                removeBtn.className = 'remove-btn';
+                removeBtn.title = 'Eliminar';
+                removeBtn.onclick = () => {
+                    selectedFiles.splice(index, 1); // Quitar del array
+                    renderFileList(); // Volver a renderizar
+                };
+
+                li.appendChild(removeBtn);
+                list.appendChild(li);
+            });
+        }
+
+        // Lógica para unir y descargar los PDFs
+        document.getElementById('mergeBtn').addEventListener('click', async function () {
+            if (selectedFiles.length === 0) {
+                alert('Por favor, selecciona al menos un archivo PDF.');
+                return;
+            }
+
+            const btn = this;
+            btn.textContent = 'Procesando...';
+            btn.disabled = true;
+
+            try {
+                // Extraer el objeto PDFDocument de la librería
+                const { PDFDocument } = PDFLib;
+
+                // Crear un nuevo documento PDF vacío
+                const mergedPdf = await PDFDocument.create();
+
+                // Iterar sobre los archivos seleccionados en orden
+                for (let file of selectedFiles) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await PDFDocument.load(arrayBuffer);
+                    const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+
+                    // Añadir cada página al nuevo documento
+                    copiedPages.forEach((page) => mergedPdf.addPage(page));
+                }
+
+                // Generar el archivo final
+                const mergedPdfBytes = await mergedPdf.save();
+
+                // Crear un enlace temporal para forzar la descarga en el navegador
+                const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Documento_Unido.pdf';
+                document.body.appendChild(a);
+                a.click();
+
+                // Limpieza del enlace temporal
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+            } catch (error) {
+                console.error("Error al procesar los PDFs:", error);
+                alert('Hubo un error al intentar unir los archivos. Verifica que sean PDFs válidos.');
+            } finally {
+                // Restaurar el botón a su estado original
+                btn.textContent = 'Unir y Descargar PDF';
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>

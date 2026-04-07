@@ -990,3 +990,11 @@ body {
   background-color: #fef2f2;
   color: var(--error);
 }
+
+/* =========================================================
+   SPINNER - usado en el botón de descarga Excel
+   ========================================================= */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

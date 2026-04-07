@@ -4,7 +4,8 @@ import {
    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
    PieChart, Pie, Legend
 } from 'recharts';
-import { obtenerEstadisticasEmpleados, obtenerTopCotizaciones, getCurrentUser, subirFotoPerfilAPI } from '../services/api';
+import * as XLSX from 'xlsx';
+import { obtenerEstadisticasEmpleados, obtenerTopCotizaciones, getCurrentUser, subirFotoPerfilAPI, obtenerReporteCotizaciones } from '../services/api';
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
@@ -12,6 +13,9 @@ const AdminDashboard = () => {
    const [data, setData] = useState<Array<{ id: string; nombre: string; cotizaciones: number; ganadas: number; perdidas: number }>>([]);
    const [donutData, setDonutData] = useState<Array<{ name: string; value: number }>>([]);
    const [loading, setLoading] = useState(true);
+   const [downloading, setDownloading] = useState(false);
+   const [mesSeleccionado, setMesSeleccionado] = useState<number>(new Date().getMonth() + 1);
+   const [anioSeleccionado, setAnioSeleccionado] = useState<number>(new Date().getFullYear());
 
    const user = getCurrentUser();
    const userDisplay = { nombre: user?.nombre || 'Admin', rol: 'Administrador' };
@@ -51,6 +55,53 @@ const AdminDashboard = () => {
       };
       fetchData();
    }, []);
+
+   const handleDownloadExcel = async () => {
+      setDownloading(true);
+      try {
+         const cotizaciones = await obtenerReporteCotizaciones(mesSeleccionado, anioSeleccionado);
+
+         if (cotizaciones.length === 0) {
+            toast('No hay cotizaciones en ese período.', { icon: '⚠️' });
+            return;
+         }
+
+         const nombresMeses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+         const etiquetaMes = nombresMeses[mesSeleccionado - 1];
+
+         const filas = cotizaciones.map((c) => ({
+            'Código': c.codigo,
+            'Asesor': c.asesor_nombre,
+            'Email Asesor': c.asesor_email || '-',
+            'Estado': c.estado.charAt(0).toUpperCase() + c.estado.slice(1),
+            'Valor ($)': c.valor ?? '-',
+            'Visitas': c.total_visitas,
+            'Fecha': new Date(c.created_at).toLocaleDateString('es-CO', {
+               year: 'numeric', month: '2-digit', day: '2-digit'
+            }),
+         }));
+
+         const ws = XLSX.utils.json_to_sheet(filas);
+         ws['!cols'] = [
+            { wch: 20 }, // Código
+            { wch: 25 }, // Asesor
+            { wch: 30 }, // Email
+            { wch: 12 }, // Estado
+            { wch: 14 }, // Valor
+            { wch: 10 }, // Visitas
+            { wch: 14 }, // Fecha
+         ];
+
+         const wb = XLSX.utils.book_new();
+         XLSX.utils.book_append_sheet(wb, ws, 'Cotizaciones');
+         XLSX.writeFile(wb, `reporte-${etiquetaMes}-${anioSeleccionado}.xlsx`);
+         toast.success(`¡${filas.length} cotizaciones exportadas (${etiquetaMes} ${anioSeleccionado})!`);
+      } catch {
+         toast.error('Error al generar el reporte');
+      } finally {
+         setDownloading(false);
+      }
+   };
 
    const handleBarClick = (data: any) => {
       if (data?.activePayload?.length > 0) {
@@ -131,8 +182,98 @@ const AdminDashboard = () => {
    return (
       <div className="app-container">
          <div className="cover-header">
-            <div style={{ color: 'white', fontSize: '2rem', fontWeight: 700, opacity: 0.9 }}>
-               Estadísticas Globales
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '12px' }}>
+               <div style={{ color: 'white', fontSize: '2rem', fontWeight: 700, opacity: 0.9 }}>
+                  Estadísticas Globales
+               </div>
+
+               {/* Controles de descarga */}
+               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+
+                  {/* Selector de Mes */}
+                  <select
+                     id="select-mes-reporte"
+                     value={mesSeleccionado}
+                     onChange={(e) => setMesSeleccionado(Number(e.target.value))}
+                     style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        backdropFilter: 'blur(10px)',
+                        color: 'white',
+                        border: '1.5px solid rgba(255,255,255,0.4)',
+                        borderRadius: '10px',
+                        padding: '9px 12px',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        outline: 'none',
+                     }}
+                  >
+                     {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
+                        <option key={i + 1} value={i + 1} style={{ background: '#1e293b', color: 'white' }}>{m}</option>
+                     ))}
+                  </select>
+
+                  {/* Selector de Año */}
+                  <select
+                     id="select-anio-reporte"
+                     value={anioSeleccionado}
+                     onChange={(e) => setAnioSeleccionado(Number(e.target.value))}
+                     style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        backdropFilter: 'blur(10px)',
+                        color: 'white',
+                        border: '1.5px solid rgba(255,255,255,0.4)',
+                        borderRadius: '10px',
+                        padding: '9px 12px',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        outline: 'none',
+                     }}
+                  >
+                     {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map(y => (
+                        <option key={y} value={y} style={{ background: '#1e293b', color: 'white' }}>{y}</option>
+                     ))}
+                  </select>
+
+                  {/* Botón descargar */}
+                  <button
+                     id="btn-descargar-excel"
+                     onClick={handleDownloadExcel}
+                     disabled={downloading}
+                     style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: downloading ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.2)',
+                        backdropFilter: 'blur(10px)',
+                        color: 'white',
+                        border: '1.5px solid rgba(255,255,255,0.4)',
+                        borderRadius: '12px',
+                        padding: '10px 20px',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        cursor: downloading ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
+                        opacity: downloading ? 0.7 : 1,
+                     }}
+                     onMouseEnter={(e) => { if (!downloading) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.3)'; }}
+                     onMouseLeave={(e) => { if (!downloading) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.2)'; }}
+                  >
+                     {downloading ? (
+                        <>
+                           <span style={{ display: 'inline-block', width: 16, height: 16, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                           Generando...
+                        </>
+                     ) : (
+                        <>
+                           📊 Descargar Excel
+                        </>
+                     )}
+                  </button>
+
+               </div>
             </div>
          </div>
 

@@ -287,6 +287,25 @@ export const cambiarEstadoCotizacion = async (id: string, estado: string) => {
   return response.data;
 };
 
+// 📥 Obtener cotizaciones para reporte Excel (solo admin)
+// Si se pasan mes y anio, filtra por ese período.
+export const obtenerReporteCotizaciones = async (mes?: number, anio?: number): Promise<Array<{
+  id: string;
+  codigo: string;
+  created_at: string;
+  estado: string;
+  valor: number | null;
+  total_visitas: number;
+  asesor_nombre: string;
+  asesor_email: string | null;
+}>> => {
+  const params: Record<string, number> = {};
+  if (mes !== undefined) params.mes = mes;
+  if (anio !== undefined) params.anio = anio;
+  const response = await api.get('/admin/cotizaciones/reporte', { params });
+  return response.data;
+};
+
 
 // ===============================
 // 🌐 PUBLIC URL

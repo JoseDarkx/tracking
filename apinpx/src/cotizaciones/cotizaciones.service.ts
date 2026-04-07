@@ -566,6 +566,74 @@ export class CotizacionesService {
   }
 
   /**
+   * Recupera cotizaciones para generar un reporte exportable.
+   * Si se proveen mes y año, filtra por ese período. Si no, devuelve todas.
+   * Solo debe ser llamado por administradores.
+   * @param mes Número de mes (1-12). Opcional.
+   * @param anio Año de 4 dígitos. Opcional.
+   * @returns Arreglo de cotizaciones con datos de asesor y visitas.
+   */
+  async listarParaReporte(mes?: number, anio?: number) {
+    let query = this.supabase.client
+      .from('cotizaciones')
+      .select(
+        `
+          id, codigo, slug, created_at, user_id, estado, valor,
+          visitas ( id )
+        `,
+      )
+      .order('created_at', { ascending: false });
+
+    // Filtrar por mes y año si se proveen ambos
+    if (mes && anio) {
+      const inicio = new Date(anio, mes - 1, 1);             // 1er día del mes
+      const fin = new Date(anio, mes, 1);                    // 1er día del mes siguiente
+      query = query
+        .gte('created_at', inicio.toISOString())
+        .lt('created_at', fin.toISOString());
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    let result = (data || []).map((c: any) => ({
+      id: c.id,
+      codigo: c.codigo,
+      slug: c.slug,
+      created_at: c.created_at,
+      total_visitas: c.visitas?.length ?? 0,
+      user_id: c.user_id,
+      estado: c.estado || 'pendiente',
+      valor: c.valor ?? null,
+    }));
+
+    if (result.length > 0) {
+      const userIds = [...new Set(result.map(c => c.user_id).filter(Boolean))];
+
+      if (userIds.length > 0) {
+        const { data: usuarios } = await this.supabase.client
+          .from('usuarios')
+          .select('id, nombre, email')
+          .in('id', userIds as string[]);
+
+        const usuariosMap = new Map(usuarios?.map(u => [u.id, u]) || []);
+
+        result = result.map(c => {
+          const u = usuariosMap.get(c.user_id);
+          return {
+            ...c,
+            asesor_nombre: u?.nombre || u?.email || 'Sin asesor',
+            asesor_email: u?.email || null,
+          };
+        });
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * Elimina un registro de cotización y sus visitas asociadas.
    * @param cotizacionId ID de la cotización.
    * @param userId ID del usuario solicitante.
