@@ -14,8 +14,10 @@ async function bootstrap() {
     origin: [
       'http://localhost:5173',
       'http://localhost:4173',
-      'https://surcompanycotizaciones.pages.dev' // URL de tu frontend en cloudflare
+      'https://surcompanycotizaciones.pages.dev', // URL de tu frontend en cloudflare
     ],
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true,
   });
 
