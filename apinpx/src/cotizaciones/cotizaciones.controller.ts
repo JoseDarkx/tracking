@@ -163,10 +163,10 @@ export class CotizacionesController {
   @Get('cotizaciones')
   @Roles('employee', 'admin')
   listar(
+    @CurrentUser() user: UserPayload,
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
     @Query('sortBy') sortBy?: string,
-    @CurrentUser() user: UserPayload,
   ) {
     return this.service.listar(
       parseInt(page),
