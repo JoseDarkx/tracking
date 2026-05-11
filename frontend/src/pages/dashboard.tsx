@@ -67,18 +67,20 @@ const Dashboard = () => {
     phase: 'confirming' | 'sweeping' | 'swept' | 'collapsing';
   } | null>(null);
 
+  const [sortBy, setSortBy] = useState<'recientes' | 'mas_vistas' | 'menos_vistas'>('recientes');
+
   // 🌳 CASCADE STATE — Set de IDs de grupos colapsados (por defecto todos expandidos)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
   const formRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { cargarDatos(); }, [pagination.page, usuarioFiltrado]);
+  useEffect(() => { cargarDatos(); }, [pagination.page, usuarioFiltrado, sortBy]);
 
   const cargarDatos = async () => {
     try {
       setLoading(true);
       const [metricasData, cotizacionesResponse] = await Promise.all([
         obtenerMetricas(),
-        listarCotizaciones(pagination.page, 10, usuarioFiltrado || undefined),
+        listarCotizaciones(pagination.page, 10, usuarioFiltrado || undefined, sortBy),
       ]);
       setMetricas(metricasData);
       setCotizaciones(cotizacionesResponse.data);
@@ -110,28 +112,18 @@ const Dashboard = () => {
 
     type Grupo = { parent: Cotizacion; children: Cotizacion[] };
     const grupos: Grupo[] = [];
+    const keysEnOrden: string[] = [];
 
-    for (const members of porPrimeraWord.values()) {
-      // Ordenar: el más corto (nombre base) queda como padre; si igual longitud, alfabético
-      members.sort((a, b) =>
-        a.codigo.length - b.codigo.length || a.codigo.localeCompare(b.codigo)
-      );
-      if (members.length === 1) {
-        grupos.push({ parent: members[0], children: [] });
-      } else {
+    for (const cot of visibles) {
+      const key = primeraWord(cot.codigo);
+      if (!keysEnOrden.includes(key)) {
+        keysEnOrden.push(key);
+        const members = porPrimeraWord.get(key)!;
+        // Ordenamos los miembros internamente (el más corto es el padre)
+        members.sort((a, b) => a.codigo.length - b.codigo.length || a.codigo.localeCompare(b.codigo));
         grupos.push({ parent: members[0], children: members.slice(1) });
       }
     }
-
-    // Ordenar grupos por la fecha de la cotización más reciente dentro del grupo
-    grupos.sort((a, b) => {
-      const getLatestDate = (g: Grupo) => {
-        const dates = [new Date(g.parent.created_at).getTime(), ...g.children.map(c => new Date(c.created_at).getTime())];
-        return Math.max(...dates);
-      };
-      return getLatestDate(b) - getLatestDate(a);
-    });
-
     return grupos;
   };
 
@@ -499,11 +491,32 @@ const Dashboard = () => {
 
           {/* Lista en Cascada */}
           <div className="card-box list-card">
-            <div className="list-header">
+            <div className="list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3>Cotizaciones Recientes</h3>
-              <span style={{ fontSize: '0.8rem', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, color: '#475569' }}>
-                {totalVisibles} visibles
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#475569',
+                    background: '#f8fafc',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="recientes">🕒 Recientes</option>
+                  <option value="mas_vistas">🔥 Más vistas</option>
+                  <option value="menos_vistas">❄️ Menos vistas</option>
+                </select>
+                <span style={{ fontSize: '0.8rem', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, color: '#475569' }}>
+                  {totalVisibles} visibles
+                </span>
+              </div>
             </div>
 
             <div className="list-body">

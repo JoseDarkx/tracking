@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SupabaseService } from '../database/supabase.service';
 import { randomUUID } from 'crypto';
 import type { Request } from 'express';
@@ -9,7 +14,7 @@ import type { Request } from 'express';
  */
 @Injectable()
 export class CotizacionesService {
-  constructor(private readonly supabase: SupabaseService) { }
+  constructor(private readonly supabase: SupabaseService) {}
 
   /**
    * Lista cotizaciones con soporte para paginación y filtrado por usuario.
@@ -19,31 +24,48 @@ export class CotizacionesService {
    * @param userRole Rol del usuario ('employee' o 'admin').
    * @returns Objeto con los datos de las cotizaciones y metadatos de paginación.
    */
-  async listar(page = 1, limit = 10, userId?: string, userRole?: string) {
+  async listar(page = 1, limit = 10, userId?: string, userRole?: string, sortBy?: string) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    let query = this.supabase.client
-      .from('cotizaciones')
-      .select(
-        `
+    let query = this.supabase.client.from('cotizaciones').select(
+      `
           id, codigo, slug, pdf_path, created_at, user_id, estado, valor,
           visitas ( id )
         `,
-        { count: 'exact' },
-      );
+      { count: 'exact' },
+    );
 
     if (userRole === 'employee') {
       query = query.eq('user_id', userId);
     }
 
-    const { data, count, error } = await query
-      .order('created_at', { ascending: false })
-      .range(from, to);
+    // Si el orden es por visitas, no podemos usar range directamente en la query de Supabase
+    // porque necesitamos calcular el total de visitas de cada una primero.
+    // Para 81 cotizaciones (y hasta unos cientos/miles) esto es eficiente en memoria.
+    const isSortByVisits = sortBy === 'mas_vistas' || sortBy === 'menos_vistas';
 
-    if (error) throw error;
+    let dataToProcess;
+    let totalCount;
 
-    let result = (data || []).map((c: any) => ({
+    if (isSortByVisits) {
+      // Traemos todos para ordenar globalmente
+      const { data, count, error } = await query;
+      if (error) throw error;
+      dataToProcess = data;
+      totalCount = count;
+    } else {
+      // Orden por fecha (default), podemos usar paginación de base de datos
+      const { data, count, error } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      if (error) throw error;
+      dataToProcess = data;
+      totalCount = count;
+    }
+
+
+    let result = (dataToProcess || []).map((c: any) => ({
       id: c.id,
       codigo: c.codigo,
       slug: c.slug,
@@ -55,8 +77,22 @@ export class CotizacionesService {
       valor: c.valor,
     }));
 
+    // Aplicar ordenamiento por visitas si se solicitó
+    if (sortBy === 'mas_vistas') {
+      result.sort((a, b) => b.total_visitas - a.total_visitas);
+    } else if (sortBy === 'menos_vistas') {
+      result.sort((a, b) => a.total_visitas - b.total_visitas);
+    }
+
+    // Si ordenamos por visitas, ahora aplicamos la paginación en memoria
+    if (isSortByVisits) {
+      result = result.slice(from, from + limit);
+    }
+
     if (userRole === 'admin' && result.length > 0) {
-      const userIds = [...new Set(result.map(c => c.user_id).filter(Boolean))];
+      const userIds = [
+        ...new Set(result.map((c) => c.user_id).filter(Boolean)),
+      ];
 
       if (userIds.length > 0) {
         const { data: usuarios } = await this.supabase.client
@@ -64,9 +100,9 @@ export class CotizacionesService {
           .select('id, nombre, email')
           .in('id', userIds);
 
-        const usuariosMap = new Map(usuarios?.map(u => [u.id, u]) || []);
+        const usuariosMap = new Map(usuarios?.map((u) => [u.id, u]) || []);
 
-        result = result.map(c => {
+        result = result.map((c) => {
           const usuario = usuariosMap.get(c.user_id);
           return {
             ...c,
@@ -83,8 +119,8 @@ export class CotizacionesService {
       pagination: {
         page,
         limit,
-        total: count ?? 0,
-        pages: Math.ceil((count ?? 0) / limit),
+        total: totalCount ?? 0,
+        pages: Math.ceil((totalCount ?? 0) / limit),
       },
     };
   }
@@ -126,7 +162,9 @@ export class CotizacionesService {
     }));
 
     if (result.length > 0) {
-      const userIds = [...new Set(result.map(c => c.user_id).filter(Boolean))];
+      const userIds = [
+        ...new Set(result.map((c) => c.user_id).filter(Boolean)),
+      ];
 
       if (userIds.length > 0) {
         const { data: usuarios } = await this.supabase.client
@@ -134,19 +172,19 @@ export class CotizacionesService {
           .select('id, nombre, email, role')
           .in('id', userIds);
 
-        const usuariosMap = new Map(usuarios?.map(u => [u.id, u]) || []);
+        const usuariosMap = new Map(usuarios?.map((u) => [u.id, u]) || []);
 
-        result = result.map(c => {
+        result = result.map((c) => {
           const usuario = usuariosMap.get(c.user_id);
           return {
             ...c,
             asesor: usuario
               ? {
-                id: usuario.id,
-                nombre: usuario.nombre,
-                email: usuario.email,
-                role: usuario.role,
-              }
+                  id: usuario.id,
+                  nombre: usuario.nombre,
+                  email: usuario.email,
+                  role: usuario.role,
+                }
               : null,
           };
         });
@@ -217,13 +255,20 @@ export class CotizacionesService {
    * @param valor Valor monetario (opcional).
    * @returns Resultado de la creación y la URL pública.
    */
-  async crear(codigo: string, pdf: Express.Multer.File, userId: string, valor?: number) {
+  async crear(
+    codigo: string,
+    pdf: Express.Multer.File,
+    userId: string,
+    valor?: number,
+  ) {
     if (!pdf) throw new Error('PDF no recibido');
 
     // Validación: solo permitir letras, números, espacios, guiones y guiones bajos (evita emojis)
     const regexCodigo = /^[a-zA-Z0-9\s\-_ñÑáéíóúÁÉÍÓÚ]+$/;
     if (!regexCodigo.test(codigo)) {
-      throw new BadRequestException('El código de referencia contiene caracteres no permitidos o emojis');
+      throw new BadRequestException(
+        'El código de referencia contiene caracteres no permitidos o emojis',
+      );
     }
 
     const slug = randomUUID().slice(0, 8);
@@ -312,8 +357,7 @@ export class CotizacionesService {
       const contador: Record<string, number> = {};
 
       visitasData.forEach((v: any) => {
-        contador[v.cotizacion_id] =
-          (contador[v.cotizacion_id] || 0) + 1;
+        contador[v.cotizacion_id] = (contador[v.cotizacion_id] || 0) + 1;
       });
 
       masVista = Math.max(...Object.values(contador));
@@ -372,11 +416,15 @@ export class CotizacionesService {
       return [];
     }
 
-    const conteo: Record<string, { total: number; ganadas: number; perdidas: number }> = {};
+    const conteo: Record<
+      string,
+      { total: number; ganadas: number; perdidas: number }
+    > = {};
     cotizaciones.forEach((c) => {
       if (c.user_id) {
-        if (!conteo[c.user_id]) conteo[c.user_id] = { total: 0, ganadas: 0, perdidas: 0 };
-        conteo[c.user_id].total++;                                    // ← siempre suma
+        if (!conteo[c.user_id])
+          conteo[c.user_id] = { total: 0, ganadas: 0, perdidas: 0 };
+        conteo[c.user_id].total++; // ← siempre suma
         if (c.estado === 'ganada') conteo[c.user_id].ganadas++;
         if (c.estado === 'perdida') conteo[c.user_id].perdidas++;
       }
@@ -390,13 +438,15 @@ export class CotizacionesService {
       .select('id, nombre, email')
       .in('id', userIds);
 
-    return (usuarios || []).map((u) => ({
-      id: u.id,
-      nombre: u.nombre || u.email,
-      cotizaciones: conteo[u.id]?.total || 0,
-      ganadas: conteo[u.id]?.ganadas || 0,
-      perdidas: conteo[u.id]?.perdidas || 0,
-    })).sort((a, b) => b.cotizaciones - a.cotizaciones);
+    return (usuarios || [])
+      .map((u) => ({
+        id: u.id,
+        nombre: u.nombre || u.email,
+        cotizaciones: conteo[u.id]?.total || 0,
+        ganadas: conteo[u.id]?.ganadas || 0,
+        perdidas: conteo[u.id]?.perdidas || 0,
+      }))
+      .sort((a, b) => b.cotizaciones - a.cotizaciones);
   }
 
   /**
@@ -406,10 +456,16 @@ export class CotizacionesService {
    * @param filtroUserId ID de usuario para filtrar (opcional para admins).
    * @returns Listas separadas de ganadas/perdidas y el total ganado.
    */
-  async obtenerCerradas(requestUserId: string, role: string, filtroUserId?: string) {
+  async obtenerCerradas(
+    requestUserId: string,
+    role: string,
+    filtroUserId?: string,
+  ) {
     let query = this.supabase.client
       .from('cotizaciones')
-      .select(`id, codigo, slug, created_at, estado, user_id, valor, visitas(id)`)
+      .select(
+        `id, codigo, slug, created_at, estado, user_id, valor, visitas(id)`,
+      )
       .in('estado', ['ganada', 'perdida'])
       .order('created_at', { ascending: false });
 
@@ -424,28 +480,35 @@ export class CotizacionesService {
     if (error) throw error;
 
     // Enriquecer con asesor
-    const userIds = [...new Set((data || []).map(c => c.user_id).filter(Boolean))];
+    const userIds = [
+      ...new Set((data || []).map((c) => c.user_id).filter(Boolean)),
+    ];
     let usuariosMap = new Map();
 
     if (userIds.length > 0) {
       const { data: usuarios } = await this.supabase.client
-        .from('usuarios').select('id, nombre, email').in('id', userIds);
-      usuariosMap = new Map(usuarios?.map(u => [u.id, u]) || []);
+        .from('usuarios')
+        .select('id, nombre, email')
+        .in('id', userIds);
+      usuariosMap = new Map(usuarios?.map((u) => [u.id, u]) || []);
     }
 
     const mapped = (data || []).map((c: any) => {
       const u = usuariosMap.get(c.user_id);
       return {
-        id: c.id, codigo: c.codigo, slug: c.slug,
-        created_at: c.created_at, estado: c.estado,
+        id: c.id,
+        codigo: c.codigo,
+        slug: c.slug,
+        created_at: c.created_at,
+        estado: c.estado,
         total_visitas: c.visitas?.length ?? 0,
         valor: c.valor ?? null,
         asesor: u ? { nombre: u.nombre, email: u.email } : null,
       };
     });
 
-    const ganadas = mapped.filter(c => c.estado === 'ganada');
-    const perdidas = mapped.filter(c => c.estado === 'perdida');
+    const ganadas = mapped.filter((c) => c.estado === 'ganada');
+    const perdidas = mapped.filter((c) => c.estado === 'perdida');
 
     // Sumar valores de cotizaciones ganadas (solo las que tienen valor definido)
     const totalGanado = ganadas.reduce((sum, c) => sum + (c.valor ?? 0), 0);
@@ -471,18 +534,17 @@ export class CotizacionesService {
     // Mapeamos para obtener el formato que necesita el gráfico { name, value }
     const stats = (data || []).map((c: any) => ({
       name: `Cotización ${c.codigo}`, // Nombre para la etiqueta
-      value: c.visitas?.length ?? 0,  // Cantidad de visitas
+      value: c.visitas?.length ?? 0, // Cantidad de visitas
     }));
 
     // 1. Filtramos las que tienen 0 visitas (para que no salga vacío)
     // 2. Ordenamos de Mayor a Menor (descendente)
     // 3. Tomamos solo las 5 primeras
     return stats
-      .filter(item => item.value > 0)
+      .filter((item) => item.value > 0)
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
   }
-
 
   /**
    * Registra una visita y abre el tracking cuando un cliente accede al PDF.
@@ -497,7 +559,8 @@ export class CotizacionesService {
       .eq('slug', slug)
       .single();
 
-    if (error || !cotizacion) throw new NotFoundException('Cotización no encontrada');
+    if (error || !cotizacion)
+      throw new NotFoundException('Cotización no encontrada');
 
     const { data: visita } = await this.supabase.client
       .from('visitas')
@@ -530,8 +593,6 @@ export class CotizacionesService {
       if (usuario?.email) asesorEmail = usuario.email;
     }
 
-
-
     // 🔔 WEBHOOK (ÚNICO CAMBIO)
     if (process.env.WEBHOOK_URL) {
       fetch(process.env.WEBHOOK_URL, {
@@ -550,7 +611,7 @@ export class CotizacionesService {
           },
           fecha_hour: new Date().toISOString(),
         }),
-      }).catch(() => { });
+      }).catch(() => {});
     }
 
     const { data: publicUrl } = this.supabase.client.storage
@@ -586,8 +647,8 @@ export class CotizacionesService {
 
     // Filtrar por mes y año si se proveen ambos
     if (mes && anio) {
-      const inicio = new Date(anio, mes - 1, 1);             // 1er día del mes
-      const fin = new Date(anio, mes, 1);                    // 1er día del mes siguiente
+      const inicio = new Date(anio, mes - 1, 1); // 1er día del mes
+      const fin = new Date(anio, mes, 1); // 1er día del mes siguiente
       query = query
         .gte('created_at', inicio.toISOString())
         .lt('created_at', fin.toISOString());
@@ -609,7 +670,9 @@ export class CotizacionesService {
     }));
 
     if (result.length > 0) {
-      const userIds = [...new Set(result.map(c => c.user_id).filter(Boolean))];
+      const userIds = [
+        ...new Set(result.map((c) => c.user_id).filter(Boolean)),
+      ];
 
       if (userIds.length > 0) {
         const { data: usuarios } = await this.supabase.client
@@ -617,9 +680,9 @@ export class CotizacionesService {
           .select('id, nombre, email')
           .in('id', userIds as string[]);
 
-        const usuariosMap = new Map(usuarios?.map(u => [u.id, u]) || []);
+        const usuariosMap = new Map(usuarios?.map((u) => [u.id, u]) || []);
 
-        result = result.map(c => {
+        result = result.map((c) => {
           const u = usuariosMap.get(c.user_id);
           return {
             ...c,
@@ -653,8 +716,14 @@ export class CotizacionesService {
       throw new ForbiddenException('No tienes permiso');
     }
 
-    await this.supabase.client.from('visitas').delete().eq('cotizacion_id', cotizacionId);
-    await this.supabase.client.from('cotizaciones').delete().eq('id', cotizacionId);
+    await this.supabase.client
+      .from('visitas')
+      .delete()
+      .eq('cotizacion_id', cotizacionId);
+    await this.supabase.client
+      .from('cotizaciones')
+      .delete()
+      .eq('id', cotizacionId);
 
     return { ok: true };
   }
@@ -667,7 +736,12 @@ export class CotizacionesService {
    * @param role Rol del usuario.
    * @returns Mensaje de éxito.
    */
-  async cambiarEstado(id: string, estado: string, userId: string, role: string) {
+  async cambiarEstado(
+    id: string,
+    estado: string,
+    userId: string,
+    role: string,
+  ) {
     // 1. Verificamos que la cotización exista y obtenemos su dueño
     const { data: cotizacion, error: findError } = await this.supabase.client
       .from('cotizaciones')
@@ -681,7 +755,9 @@ export class CotizacionesService {
 
     // 2. Si es empleado, verificamos que sea dueño de la cotización
     if (role === 'employee' && cotizacion.user_id !== userId) {
-      throw new ForbiddenException('No tienes permiso para modificar esta cotización');
+      throw new ForbiddenException(
+        'No tienes permiso para modificar esta cotización',
+      );
     }
 
     // 3. Actualizamos el estado
@@ -696,5 +772,4 @@ export class CotizacionesService {
 
     return { ok: true, mensaje: `Estado actualizado a ${estado}` };
   }
-
 }

@@ -32,7 +32,7 @@ interface UserPayload {
 
 /**
  * Controlador para la gestión de cotizaciones.
- * Maneja las rutas de administración y las rutas de empleados para crear, 
+ * Maneja las rutas de administración y las rutas de empleados para crear,
  * listar, actualizar y eliminar cotizaciones.
  */
 @Controller('api')
@@ -66,10 +66,7 @@ export class CotizacionesController {
    */
   @Get('admin/cotizaciones/reporte')
   @Roles('admin')
-  listarParaReporte(
-    @Query('mes') mes?: string,
-    @Query('anio') anio?: string,
-  ) {
+  listarParaReporte(@Query('mes') mes?: string, @Query('anio') anio?: string) {
     const mesNum = mes ? parseInt(mes, 10) : undefined;
     const anioNum = anio ? parseInt(anio, 10) : undefined;
     return this.service.listarParaReporte(mesNum, anioNum);
@@ -89,7 +86,11 @@ export class CotizacionesController {
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
   ) {
-    return this.service.listarPorEmpleado(empleadoId, parseInt(page), parseInt(limit));
+    return this.service.listarPorEmpleado(
+      empleadoId,
+      parseInt(page),
+      parseInt(limit),
+    );
   }
 
   /**
@@ -129,7 +130,9 @@ export class CotizacionesController {
   ) {
     // Validamos que el estado sea correcto para evitar basura en la DB
     if (!['pendiente', 'ganada', 'perdida'].includes(estado)) {
-      throw new BadRequestException('Estado inválido. Debe ser: pendiente, ganada o perdida.');
+      throw new BadRequestException(
+        'Estado inválido. Debe ser: pendiente, ganada o perdida.',
+      );
     }
 
     // Llamamos al servicio pasando el ID, el nuevo estado, quién lo pide y su rol
@@ -143,8 +146,7 @@ export class CotizacionesController {
   @Get('admin/estadisticas/top-vistas')
   @Roles('admin')
   obtenerTopVistas() {
-    return this.
-      service.obtenerCotizacionesMasVistas();
+    return this.service.obtenerCotizacionesMasVistas();
   }
 
   // ======================================================
@@ -163,6 +165,7 @@ export class CotizacionesController {
   listar(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
+    @Query('sortBy') sortBy?: string,
     @CurrentUser() user: UserPayload,
   ) {
     return this.service.listar(
@@ -170,6 +173,7 @@ export class CotizacionesController {
       parseInt(limit),
       user.id,
       user.role,
+      sortBy,
     );
   }
 
@@ -202,7 +206,10 @@ export class CotizacionesController {
    */
   @Get('cotizaciones/cerradas')
   @Roles('employee', 'admin')
-  async getCerradas(@CurrentUser() user: UserPayload, @Query('userId') userId?: string) {
+  async getCerradas(
+    @CurrentUser() user: UserPayload,
+    @Query('userId') userId?: string,
+  ) {
     return this.service.obtenerCerradas(user.id, user.role, userId);
   }
 
@@ -219,7 +226,7 @@ export class CotizacionesController {
   }
 
   /**
-   * Obtiene las métricas para el dashboard del usuario. 
+   * Obtiene las métricas para el dashboard del usuario.
    * Si es admin, devuelve métricas globales; si es empleado, sus métricas personales.
    * @param user Datos del usuario autenticado.
    * @returns Objeto con las métricas calculadas.
@@ -238,10 +245,7 @@ export class CotizacionesController {
    */
   @Delete('cotizaciones/:id')
   @Roles('employee', 'admin')
-  eliminar(
-    @Param('id') id: string,
-    @CurrentUser() user: UserPayload,
-  ) {
+  eliminar(@Param('id') id: string, @CurrentUser() user: UserPayload) {
     return this.service.eliminar(id, user.id, user.role);
   }
 }
@@ -265,10 +269,7 @@ export class PublicController {
    * @returns Información de la cotización y la visita iniciada.
    */
   @Get('c/:slug')
-  async abrirPdf(
-    @Param('slug') slug: string,
-    @Req() req: Request,
-  ) {
+  async abrirPdf(@Param('slug') slug: string, @Req() req: Request) {
     const data = await this.service.abrirConTracking(slug, req);
 
     if (!data) {

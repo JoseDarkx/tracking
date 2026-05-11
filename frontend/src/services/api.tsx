@@ -213,11 +213,11 @@ export const getCurrentUser = (): User | null => {
 export const listarCotizaciones = async (
   page: number = 1,
   limit: number = 10,
-  userId?: string // <--- Agregamos este parámetro opcional
+  userId?: string,
+  sortBy?: string
 ): Promise<ListarCotizacionesResponse> => {
   const response = await api.get('/cotizaciones', {
-    // Agregamos userId a los parámetros de la consulta
-    params: { page, limit, userId },
+    params: { page, limit, userId, sortBy },
   });
   return response.data;
 };

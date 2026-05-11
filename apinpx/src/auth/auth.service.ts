@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SupabaseService } from '../database/supabase.service';
 import * as bcrypt from 'bcrypt';
@@ -111,7 +115,7 @@ export class AuthService {
       email: user.email,
       sub: user.id,
       nombre: user.nombre,
-      role: user.role || 'employee', 
+      role: user.role || 'employee',
     };
 
     return {
@@ -120,7 +124,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         nombre: user.nombre,
-        role: user.role || 'employee', 
+        role: user.role || 'employee',
         avatarUrl: user.avatarUrl, // <--- FOTO AÑADIDA AQUÍ
       },
     };
@@ -141,7 +145,7 @@ export class AuthService {
     nombre: string,
     email: string,
     password: string,
-    role: string = 'employee', 
+    role: string = 'employee',
   ) {
     // Verificar si el email ya existe
     const { data: existing } = await this.supabase.client
@@ -170,7 +174,7 @@ export class AuthService {
         nombre,
         email,
         password_hash,
-        role, 
+        role,
       })
       .select()
       .single();
@@ -240,10 +244,7 @@ export class AuthService {
    * @param newPassword Nueva contraseña en texto plano.
    * @returns Mensaje informativo del cambio.
    */
-  async adminChangePasswordByEmail(
-    email: string,
-    newPassword: string,
-  ) {
+  async adminChangePasswordByEmail(email: string, newPassword: string) {
     const { data: user, error } = await this.supabase.client
       .from('usuarios')
       .select('*')
@@ -299,9 +300,12 @@ export class AuthService {
    * @param file Archivo subido (buffer y metadatos).
    * @returns URL pública de la imagen alojada.
    */
-  async subirAvatar(userId: string, file: Express.Multer.File): Promise<string> {
+  async subirAvatar(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<string> {
     // 1. Instancia correcta de Supabase
-    const supabase = this.supabase.client; 
+    const supabase = this.supabase.client;
 
     // 2. Generamos un nombre único para la foto
     const fileExt = file.originalname.split('.').pop();
@@ -309,12 +313,11 @@ export class AuthService {
     const filePath = `public/${fileName}`;
 
     // 3. Subimos el archivo al bucket 'avatars'
-    const { data: uploadData, error: uploadError } = await supabase
-      .storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(filePath, file.buffer, {
         contentType: file.mimetype,
-        upsert: true, 
+        upsert: true,
       });
 
     if (uploadError) {
@@ -323,15 +326,14 @@ export class AuthService {
     }
 
     // 4. Obtenemos la URL pública
-    const { data: { publicUrl } } = supabase
-      .storage
-      .from('avatars')
-      .getPublicUrl(filePath);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('avatars').getPublicUrl(filePath);
 
     // 5. Guardamos esa URL en la tabla 'usuarios'
     const { error: updateError } = await supabase
       .from('usuarios')
-      .update({ avatarUrl: publicUrl }) 
+      .update({ avatarUrl: publicUrl })
       .eq('id', userId);
 
     if (updateError) {
